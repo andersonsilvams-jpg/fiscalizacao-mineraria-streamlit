@@ -1,4 +1,10 @@
 from __future__ import annotations
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 import io, re
 from urllib.parse import urljoin
 import pandas as pd
