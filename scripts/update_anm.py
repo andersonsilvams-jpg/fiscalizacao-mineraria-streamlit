@@ -19,6 +19,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
+from urllib3.exceptions import InsecureRequestWarning
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'data' / 'anm'
@@ -36,6 +37,7 @@ RESOURCE_URLS = {
 }
 EXTENSIONS = ('.csv', '.zip', '.xlsx', '.xls', '.parquet', '.kmz', '.kml', '.json')
 HEADERS = {'User-Agent': 'FiscalizacaoMineraria/0.1 (+public-data-downloader)'}
+ANM_HOST = 'dadosabertos.anm.gov.br'
 
 
 def discover(url: str) -> list[str]:
@@ -68,14 +70,22 @@ def download(url: str, target: Path, dry_run: bool) -> dict:
     if dry_run: return {'url': url, 'file': str(target.relative_to(ROOT)), 'status': 'planned'}
     tmp = target.with_suffix(target.suffix + '.part')
     h = hashlib.sha256(); size = 0
-    with requests.get(url, headers=HEADERS, stream=True, timeout=(30, 300)) as r:
+    try:
+        response = requests.get(url, headers=HEADERS, stream=True, timeout=(30, 300))
+        insecure = False
+    except requests.exceptions.SSLError:
+        if ANM_HOST not in url.lower(): raise
+        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        response = requests.get(url, headers=HEADERS, stream=True, timeout=(30, 300), verify=False)
+        insecure = True
+    with response as r:
         r.raise_for_status()
         with tmp.open('wb') as f:
             for chunk in r.iter_content(1024 * 1024):
                 if chunk:
                     f.write(chunk); h.update(chunk); size += len(chunk)
     tmp.replace(target)
-    return {'url': url, 'file': str(target.relative_to(ROOT)), 'status': 'downloaded', 'bytes': size, 'sha256': h.hexdigest()}
+    return {'url': url, 'file': str(target.relative_to(ROOT)), 'status': 'downloaded', 'bytes': size, 'sha256': h.hexdigest(), 'insecure_tls_fallback': insecure}
 
 
 def main():
