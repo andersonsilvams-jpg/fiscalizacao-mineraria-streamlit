@@ -30,6 +30,8 @@ with st.sidebar:
                 st.session_state.anm_sources = sources
                 st.session_state.anm_updated = pd.Timestamp.now(tz='UTC').isoformat()
                 st.success(f'{len(st.session_state.minerios):,} linhas empresariais carregadas.')
+                if any(s.get('insecure_tls_fallback') for s in sources):
+                    st.warning('A ANM foi acessada por fallback TLS restrito ao domínio público dadosabertos.anm.gov.br. Verifique a atualização do certificado do servidor ANM antes de uso institucional.')
             if errors: st.warning(' | '.join(errors))
     if st.session_state.get('anm_updated'):
         st.caption('Última atualização: ' + st.session_state.anm_updated)
