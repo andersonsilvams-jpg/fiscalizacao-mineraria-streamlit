@@ -102,6 +102,10 @@ def stats_municipio(base: pd.DataFrame, empresas: pd.DataFrame) -> pd.DataFrame:
 BASES = [
     ('Satélite (Esri)', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
      'Tiles &copy; Esri, Maxar, Earthstar Geographics', 'abc'),
+    ('Ruas (Esri)', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+     'Tiles &copy; Esri, DeLorme, NAVTEQ, USGS', 'abc'),
+    ('Cinza claro (Esri)', 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+     'Tiles &copy; Esri, DeLorme, NAVTEQ, USGS', 'abc'),
     ('OpenStreetMap', 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
      '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', 'abc'),
     ('OpenStreetMap (original, só funciona no app online)', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
