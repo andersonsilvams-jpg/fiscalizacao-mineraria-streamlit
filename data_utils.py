@@ -46,6 +46,19 @@ def read_uploaded(uploaded):
     raise ValueError('Formato não suportado. Use CSV, XLSX ou Parquet.')
 
 
+def _num(v):
+    """'1.234,56' -> 1234.56 ; '1234.56' -> 1234.56."""
+    s = str(v).strip() if pd.notna(v) else ''
+    if not s:
+        return float('nan')
+    if ',' in s:
+        s = s.replace('.', '').replace(',', '.')
+    try:
+        return float(s)
+    except ValueError:
+        return float('nan')
+
+
 def normalize(df):
     if df is None or df.empty: return pd.DataFrame()
     out = df.copy()
@@ -63,6 +76,10 @@ def normalize(df):
         out['cpf'] = out['cpf'].map(lambda x: clean_doc(x, 11))
     # Regra explícita do projeto: pessoas físicas/linhas sem CNPJ não entram na base empresarial.
     out = out[out['cnpj'].str.len().eq(14)].copy()
+    if 'ano' in out:
+        out['ano'] = pd.to_numeric(out['ano'], errors='coerce').astype('Int64')
+    if 'valor' in out:
+        out['valor'] = out['valor'].map(_num)
     out['uf'] = out['uf'].str.upper().str[:2]
     out['municipio'] = out['municipio'].str.title()
     out['empresa_key'] = out['cnpj']
@@ -82,16 +99,63 @@ def enrich(df, crea_df=None):
         out['registro_crea'] = out['registro_crea'].fillna(False)
     else:
         out['registro_crea'] = pd.NA
-    out['prioridade'] = 'Baixa'
-    out.loc[out['tem_indicio_operacao'].eq(True), 'prioridade'] = 'Média'
-    out.loc[out['tem_indicio_operacao'].eq(True) & out['registro_crea'].eq(False), 'prioridade'] = 'Alta'
     return out
 
 
+ORDEM_PRIORIDADE = {'Alta': 0, 'Média': 1, 'Baixa': 2, 'Sem base Crea': 3}
+
+
 def company_summary(df):
+    """Uma linha por CNPJ, com CFEM por ano e prioridade.
+
+    Prioridade (exige a base do Crea carregada):
+      Alta  = sem registro no Crea e CFEM recolhida em ano recente (indício forte de que ainda opera)
+      Média = sem registro no Crea, CFEM apenas em anos anteriores
+      Baixa = com registro no Crea
+    """
     if df.empty: return df
-    agg = {'titular':lambda x: next((v for v in x if v), ''),'uf':'first','municipio':lambda x: ', '.join(sorted(set(v for v in x if v))), 'processo':'count','substancia':lambda x: ', '.join(sorted(set(v for v in x if v))), 'prioridade':'max','registro_crea':'first'}
-    return df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo':'qtd_processos'})
+    agg = {
+        'titular': lambda x: next((v for v in x if v), ''),
+        'uf': 'first',
+        'municipio': lambda x: ', '.join(sorted(set(v for v in x if v))),
+        'processo': lambda x: x[x.ne('')].nunique(),
+        'substancia': lambda x: ', '.join(sorted(set(v for v in x if v))),
+        'registro_crea': 'first',
+    }
+    resumo = df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo': 'qtd_processos'})
+
+    # CFEM por ano (somente linhas da CFEM quando a origem está marcada)
+    cf = df[df['ano'].notna()] if 'ano' in df else df.iloc[0:0]
+    if 'fonte' in cf: cf = cf[cf['fonte'].eq('cfem')]
+    anos_cols = []
+    if len(cf):
+        if 'valor' in cf and cf['valor'].notna().any():
+            pv = cf.groupby(['cnpj', 'ano'])['valor'].sum().unstack(fill_value=0)
+        else:
+            pv = cf.groupby(['cnpj', 'ano']).size().unstack(fill_value=0)
+        pv.columns = [f'CFEM {int(a)}' for a in pv.columns]
+        anos_cols = list(pv.columns)
+        resumo = resumo.merge(pv, left_on='cnpj', right_index=True, how='left')
+        resumo[anos_cols] = resumo[anos_cols].fillna(0)
+        resumo['ultimo_ano_cfem'] = resumo['cnpj'].map(cf.groupby('cnpj')['ano'].max()).astype('Int64')
+        ano_ref = int(cf['ano'].max())
+    else:
+        resumo['ultimo_ano_cfem'] = pd.array([pd.NA] * len(resumo), dtype='Int64')
+        ano_ref = None
+
+    janela = int(CONFIG['app'].get('anos_recentes', 2))
+    recente = resumo['ultimo_ano_cfem'].notna() & (resumo['ultimo_ano_cfem'].fillna(0) >= (ano_ref or 0) - janela + 1)
+    if df['registro_crea'].notna().any():
+        sem_reg = resumo['registro_crea'].eq(False)
+        resumo['prioridade'] = 'Baixa'
+        resumo.loc[sem_reg, 'prioridade'] = 'Média'
+        resumo.loc[sem_reg & recente, 'prioridade'] = 'Alta'
+    else:
+        resumo['prioridade'] = 'Sem base Crea'
+
+    resumo = resumo.sort_values(by=['prioridade', 'qtd_processos'], key=lambda c: c.map(ORDEM_PRIORIDADE) if c.name == 'prioridade' else -c)
+    ordem = ['cnpj', 'titular', 'uf', 'municipio', 'prioridade', 'registro_crea', 'ultimo_ano_cfem'] + anos_cols + ['qtd_processos', 'substancia']
+    return resumo[ordem].reset_index(drop=True)
 
 
 def fmt_cnpj(value):
