@@ -3,6 +3,7 @@ import io, re
 from urllib.parse import urljoin
 import pandas as pd
 import requests
+from csv_utils import read_csv_bytes
 from bs4 import BeautifulSoup
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -35,16 +36,7 @@ def _resource_links(page_url: str) -> list[str]:
 def _read_bytes(name: str, raw: bytes) -> pd.DataFrame:
     low = name.lower().split('?')[0]
     if low.endswith('.csv'):
-        last = None
-        for enc in ('utf-8-sig', 'utf-8', 'latin1'):
-            for sep in (None, ';', ','):
-                try:
-                    kwargs = {'sep': sep, 'encoding': enc}
-                    if sep is not None:
-                        kwargs['low_memory'] = False
-                    return pd.read_csv(io.BytesIO(raw), engine='python', **kwargs)
-                except Exception as exc: last = exc
-        raise ValueError(f'CSV não pôde ser lido: {last}')
+        return read_csv_bytes(raw)
     if low.endswith(('.xlsx', '.xls')): return pd.read_excel(io.BytesIO(raw))
     if low.endswith('.parquet'): return pd.read_parquet(io.BytesIO(raw))
     if low.endswith('.json'): return pd.read_json(io.BytesIO(raw))
