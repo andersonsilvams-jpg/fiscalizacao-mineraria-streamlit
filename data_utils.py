@@ -137,10 +137,13 @@ def company_summary(df):
         anos_cols = list(pv.columns)
         resumo = resumo.merge(pv, left_on='cnpj', right_index=True, how='left')
         resumo[anos_cols] = resumo[anos_cols].fillna(0)
+        anos_txt = pv.gt(0).apply(lambda r: ', '.join(c.split()[-1] for c, ok in r.items() if ok), axis=1)
+        resumo['anos_cfem'] = resumo['cnpj'].map(anos_txt).fillna('')
         resumo['ultimo_ano_cfem'] = resumo['cnpj'].map(cf.groupby('cnpj')['ano'].max()).astype('Int64')
         ano_ref = int(cf['ano'].max())
     else:
         resumo['ultimo_ano_cfem'] = pd.array([pd.NA] * len(resumo), dtype='Int64')
+        resumo['anos_cfem'] = ''
         ano_ref = None
 
     janela = int(CONFIG['app'].get('anos_recentes', 2))
@@ -154,7 +157,7 @@ def company_summary(df):
         resumo['prioridade'] = 'Sem base Crea'
 
     resumo = resumo.sort_values(by=['prioridade', 'qtd_processos'], key=lambda c: c.map(ORDEM_PRIORIDADE) if c.name == 'prioridade' else -c)
-    ordem = ['cnpj', 'titular', 'uf', 'municipio', 'prioridade', 'registro_crea', 'ultimo_ano_cfem'] + anos_cols + ['qtd_processos', 'substancia']
+    ordem = ['cnpj', 'titular', 'uf', 'municipio', 'prioridade', 'registro_crea', 'anos_cfem', 'ultimo_ano_cfem'] + anos_cols + ['qtd_processos', 'substancia']
     return resumo[ordem].reset_index(drop=True)
 
 
