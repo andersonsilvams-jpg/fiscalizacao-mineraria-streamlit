@@ -97,6 +97,17 @@ def stats_municipio(base: pd.DataFrame, empresas: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------- mapa Leaflet ----------------
+# Mapas de fundo. O servidor do OpenStreetMap bloqueia páginas abertas direto do computador (file://, sem Referer),
+# então o padrão é o CARTO (também baseado em dados do OSM); o OpenStreetMap continua disponível no seletor de camadas.
+BASES = [
+    ('CARTO Positron (claro)', 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>', 'abcd'),
+    ('OpenStreetMap', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', 'abc'),
+    ('Satélite (Esri)', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+     'Tiles &copy; Esri, Maxar, Earthstar Geographics', 'abc'),
+]
+
 CORES = {'Alta': '#d62728', 'Média': '#ff9f1c', 'Baixa': '#2a9d8f', 'Sem base Crea': '#6c757d', 'Sem CFEM': '#9aa0a6'}
 
 
@@ -107,7 +118,9 @@ def montar_mapa(pontos: pd.DataFrame, municipios: dict | None = None, stats: pd.
     pts_all = pd.concat([x[['lat', 'lon']] for x in (pontos, extras) if x is not None and len(x)], ignore_index=True)
     if pts_all.empty and not municipios:
         raise ValueError('Nada para plotar.')
-    m = folium.Map(location=[-20.5, -54.6], zoom_start=6, tiles='OpenStreetMap', control_scale=True, prefer_canvas=True)
+    m = folium.Map(location=[-20.5, -54.6], zoom_start=6, tiles=None, control_scale=True, prefer_canvas=True, zoom_snap=0.25)
+    for i, (nome_b, url_b, attr_b, sub_b) in enumerate(BASES):
+        folium.TileLayer(tiles=url_b, attr=attr_b, name=nome_b, subdomains=sub_b, max_zoom=19, show=(i == 0)).add_to(m)
 
     if municipios:
         smap = {}
@@ -160,5 +173,6 @@ def montar_mapa(pontos: pd.DataFrame, municipios: dict | None = None, stats: pd.
         ys, xs = pts_all['lat'], pts_all['lon']
     m.fit_bounds([[float(ys.min()), float(xs.min())], [float(ys.max()), float(xs.max())]])
     folium.LayerControl(collapsed=False).add_to(m)
-    Fullscreen().add_to(m); MiniMap(toggle_display=True, zoom_level_fixed=None).add_to(m)
+    mini = folium.TileLayer(tiles=BASES[0][1], attr=BASES[0][2], subdomains=BASES[0][3])
+    Fullscreen().add_to(m); MiniMap(tile_layer=mini, toggle_display=True, zoom_level_fixed=None).add_to(m)
     return m
