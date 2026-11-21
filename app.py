@@ -1,3 +1,4 @@
+import zlib
 from pathlib import Path
 import pandas as pd
 import plotly.express as px
@@ -19,6 +20,7 @@ if 'carga' not in st.session_state: st.session_state.carga = {}        # passo -
 if 'frames' not in st.session_state: st.session_state.frames = {}      # passo -> DataFrame (CFEM)
 if 'titulares' not in st.session_state: st.session_state.titulares = pd.DataFrame()   # cnpj -> razão social
 if 'uf_ativa' not in st.session_state: st.session_state.uf_ativa = None
+if 'reset_n' not in st.session_state: st.session_state.reset_n = 0   # muda a cada "Limpar sessão": recria filtros e uploads
 if 'tls_fallback' not in st.session_state: st.session_state.tls_fallback = False
 
 
@@ -50,6 +52,11 @@ def guardar(passo, dados):
         st.session_state.municipios = dados
 
 
+def kreset(nome, *opcoes):
+    """Chave de widget que muda ao limpar a sessão (ou quando as opções mudam), para recriá-lo com o valor padrão."""
+    return f"{nome}_{st.session_state.reset_n}_{zlib.crc32('|'.join(map(str, opcoes)).encode())}"
+
+
 with st.sidebar:
     st.title('Fiscalização Minerária')
     st.caption('Sistema Confea/Crea • ANM')
@@ -62,8 +69,14 @@ with st.sidebar:
         _falhas = [p for p, (ok, _) in st.session_state.carga.items() if not ok]
         tentar = st.button('Tentar novamente o que falhou', use_container_width=True) if _falhas else False
         recarregar = st.button('Recarregar tudo (ignorar cache)', use_container_width=True)
+        limpar = st.button('Limpar sessão (esquecer lista do Crea e filtros)', use_container_width=True,
+                           help='Apaga a lista de empresas registradas enviada e volta filtros e página ao início. Os dados da ANM continuam carregados.')
+        if limpar:
+            st.session_state.crea = pd.DataFrame()
+            st.session_state.reset_n += 1
+            st.rerun()
     st.divider()
-    page = st.radio('Navegação', ['Painel', 'Empresas', 'Mapa', 'Importação de dados', 'Legislação e fontes', 'Checklist remoto'])
+    page = st.radio('Navegação', ['Painel', 'Empresas', 'Mapa', 'Importação de dados', 'Legislação e fontes', 'Checklist remoto'], key=kreset('pagina'))
     st.caption('A base pública é um apoio à triagem. A confirmação de infração exige análise do agente fiscal.')
     st.divider()
 
@@ -113,7 +126,7 @@ base = enrich(st.session_state.minerios, st.session_state.crea)
 if ufs and not base.empty: base = base[base.uf.isin(ufs)]
 with st.sidebar:
     municipios = ['Todos'] + sorted(base.municipio[base.municipio.ne('')].dropna().unique().tolist()) if not base.empty else ['Todos']
-    municipio = st.selectbox('Município', municipios)
+    municipio = st.selectbox('Município', municipios, key=kreset('municipio', *municipios))
 if municipio != 'Todos' and not base.empty: base = base[base.municipio.eq(municipio)]
 empresas = company_summary(base, st.session_state.titulares)
 sem_ano = (not empresas.empty) and empresas['ultimo_ano_cfem'].isna().all()
@@ -147,7 +160,7 @@ if page == 'Importação de dados':
     c1, c2 = st.columns(2)
     with c1:
         st.subheader('ANM — mineração')
-        up = st.file_uploader('CSV, XLSX ou Parquet', type=['csv','xlsx','xls','parquet'], key='anm_upload')
+        up = st.file_uploader('CSV, XLSX ou Parquet', type=['csv','xlsx','xls','parquet'], key=kreset('anm_upload'))
         if up and st.button('Carregar base ANM'):
             try:
                 st.session_state.minerios = normalize(read_uploaded(up))
@@ -155,7 +168,7 @@ if page == 'Importação de dados':
             except Exception as e: st.error(str(e))
     with c2:
         st.subheader('Crea — registros/ARTs')
-        upc = st.file_uploader('Arquivo autorizado do Crea', type=['csv','xlsx','xls','parquet'], key='crea_upload')
+        upc = st.file_uploader('Arquivo autorizado do Crea', type=['csv','xlsx','xls','parquet'], key=kreset('crea_upload'))
         if upc and st.button('Carregar base Crea'):
             try:
                 st.session_state.crea = normalize(read_uploaded(upc))
@@ -191,9 +204,10 @@ elif page == 'Empresas':
     if empresas.empty: st.info('Carregue uma base para consultar empresas.')
     else:
         aviso_ano()
-        q = st.text_input('Pesquisar por CNPJ, razão social, município ou substância')
-        prioridades = st.multiselect('Prioridade', sorted(empresas.prioridade.dropna().unique()), default=sorted(empresas.prioridade.dropna().unique()))
-        mostrar_valores = st.checkbox('Mostrar também o valor recolhido por ano (R$)', value=False)
+        q = st.text_input('Pesquisar por CNPJ, razão social, município ou substância', key=kreset('busca'))
+        _opt_prio = sorted(empresas.prioridade.dropna().unique())
+        prioridades = st.multiselect('Prioridade', _opt_prio, default=_opt_prio, key=kreset('prioridade', *_opt_prio))
+        mostrar_valores = st.checkbox('Mostrar também o valor recolhido por ano (R$)', value=False, key=kreset('valores'))
         view = empresas[empresas.prioridade.isin(prioridades)].copy()
         if q:
             mask = view.astype(str).apply(lambda col: col.str.contains(q, case=False, na=False)).any(axis=1)
@@ -225,13 +239,13 @@ elif page == 'Mapa':
                'O ponto marca o centro da área do processo; não é a localização exata da lavra.')
     _falhou_geo = any(not st.session_state.carga.get(p, (True, ''))[0] for p in ('sigmine', 'municipios'))
     with st.expander('Plano B: enviar arquivos manualmente (SIGMINE e municípios)', expanded=_falhou_geo):
-        up_sig = st.file_uploader('SIGMINE (shapefile .zip ou .geojson)', type=['zip', 'geojson', 'json'], key='sigmine_upload')
+        up_sig = st.file_uploader('SIGMINE (shapefile .zip ou .geojson)', type=['zip', 'geojson', 'json'], key=kreset('sigmine_upload'))
         if up_sig and st.button('Carregar arquivo SIGMINE'):
             try:
                 st.session_state.sigmine = read_sigmine(up_sig.getvalue(), up_sig.name)
                 st.success(f'{len(st.session_state.sigmine):,} áreas carregadas do SIGMINE.')
             except Exception as e: st.error(str(e))
-        up_kml = st.file_uploader('Limites dos municípios (KML/KMZ)', type=['kml', 'kmz'], key='kml_upload')
+        up_kml = st.file_uploader('Limites dos municípios (KML/KMZ)', type=['kml', 'kmz'], key=kreset('kml_upload'))
         if up_kml and st.button('Carregar KML/KMZ'):
             try:
                 st.session_state.municipios = ler_kml(up_kml.getvalue(), up_kml.name)
@@ -255,9 +269,9 @@ elif page == 'Mapa':
         else:
             disp = [o for o in ['Alta', 'Média', 'Baixa', 'Sem base Crea'] if o in set(pontos['prioridade'].dropna())]
             f1, f2, f3 = st.columns([2, 1, 1])
-            sel = f1.multiselect('Prioridade no mapa', disp, default=disp)
-            outras = f2.checkbox('Incluir demais áreas do SIGMINE (sem CFEM)', value=False)
-            colorir = f3.checkbox('Colorir municípios (empresas Alta)', value=True)
+            sel = f1.multiselect('Prioridade no mapa', disp, default=disp, key=kreset('prio_mapa', *disp))
+            outras = f2.checkbox('Incluir demais áreas do SIGMINE (sem CFEM)', value=False, key=kreset('outras'))
+            colorir = f3.checkbox('Colorir municípios (empresas Alta)', value=True, key=kreset('colorir'))
             pts = pontos[pontos['prioridade'].isin(sel)].copy()
             extras = None
             if outras:
