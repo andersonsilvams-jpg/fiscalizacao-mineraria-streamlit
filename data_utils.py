@@ -3,6 +3,7 @@ import io, re, unicodedata
 from pathlib import Path
 import pandas as pd
 import yaml
+from csv_utils import read_csv_bytes
 
 ROOT = Path(__file__).parent
 CONFIG = yaml.safe_load((ROOT / 'config.yaml').read_text(encoding='utf-8'))
@@ -32,9 +33,7 @@ def read_uploaded(uploaded):
     name = uploaded.name.lower()
     raw = uploaded.getvalue()
     if name.endswith('.csv'):
-        for enc in ('utf-8-sig', 'latin1'):
-            try: return pd.read_csv(io.BytesIO(raw), sep=None, engine='python', encoding=enc)
-            except Exception: pass
+        return read_csv_bytes(raw)
     if name.endswith(('.xlsx','.xls')):
         return pd.read_excel(io.BytesIO(raw))
     if name.endswith('.parquet'):
@@ -86,5 +85,5 @@ def enrich(df, crea_df=None):
 
 def company_summary(df):
     if df.empty: return df
-    agg = {'titular':'first','uf':'first','municipio':lambda x: ', '.join(sorted(set(v for v in x if v))), 'processo':'count','substancia':lambda x: ', '.join(sorted(set(v for v in x if v))), 'prioridade':'max','registro_crea':'first'}
+    agg = {'titular':lambda x: next((v for v in x if v), ''),'uf':'first','municipio':lambda x: ', '.join(sorted(set(v for v in x if v))), 'processo':'count','substancia':lambda x: ', '.join(sorted(set(v for v in x if v))), 'prioridade':'max','registro_crea':'first'}
     return df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo':'qtd_processos'})
