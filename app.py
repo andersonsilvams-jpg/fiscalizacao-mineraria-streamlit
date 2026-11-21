@@ -22,6 +22,7 @@ with st.sidebar:
             for dataset in ('cfem', 'cadastro_mineiro'):
                 try:
                     df, meta = download_dataset(dataset, direct.get(dataset) or None)
+                    df['fonte'] = dataset
                     frames.append(df); sources.append(meta)
                 except Exception as exc: errors.append(f'{dataset}: {exc}')
             if frames:
@@ -54,6 +55,7 @@ with st.sidebar:
     municipio = st.selectbox('Município', municipios)
 if municipio != 'Todos' and not base.empty: base = base[base.municipio.eq(municipio)]
 empresas = company_summary(base)
+sem_ano = (not empresas.empty) and empresas['ultimo_ano_cfem'].isna().all()
 
 if page == 'Importação de dados':
     st.header('Importação e atualização de dados')
@@ -95,6 +97,8 @@ elif page == 'Painel':
     if base.empty:
         st.warning('Nenhum dado empresarial carregado. Use “Importação de dados” para carregar uma base oficial da ANM.')
     else:
+        if sem_ano:
+            st.warning('Coluna do ano de recolhimento da CFEM não identificada: a prioridade não considera anos. Ajuste os nomes em config.yaml (columns > ano).')
         a,b,c,d = st.columns(4)
         a.metric('Empresas', f'{len(empresas):,}')
         b.metric('Processos/linhas', f'{len(base):,}')
@@ -108,12 +112,14 @@ elif page == 'Painel':
             pri = empresas.groupby('prioridade', dropna=False).size().reset_index(name='empresas')
             st.plotly_chart(px.pie(pri, names='prioridade', values='empresas', title='Distribuição de prioridade'), use_container_width=True)
         st.subheader('Fila para análise do agente fiscal')
-        st.dataframe(empresas.sort_values(['prioridade','qtd_processos'], ascending=[True,False]), use_container_width=True, hide_index=True)
+        st.dataframe(empresas, use_container_width=True, hide_index=True)
 
 elif page == 'Empresas':
     st.header('Empresas e empreendimentos')
     if empresas.empty: st.info('Carregue uma base para consultar empresas.')
     else:
+        if sem_ano:
+            st.warning('Coluna do ano de recolhimento da CFEM não identificada: a prioridade não considera anos. Ajuste os nomes em config.yaml (columns > ano).')
         q = st.text_input('Pesquisar por CNPJ, razão social, município ou substância')
         prioridades = st.multiselect('Prioridade', sorted(empresas.prioridade.dropna().unique()), default=sorted(empresas.prioridade.dropna().unique()))
         view = empresas[empresas.prioridade.isin(prioridades)].copy()
