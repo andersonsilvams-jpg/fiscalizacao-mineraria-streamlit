@@ -20,6 +20,11 @@ def find_col(df, logical):
     for c in df.columns:
         if _key(c) in aliases:
             return c
+    # Fallback: qualquer coluna cujo nome contenha 'cnpj' (ex.: CPF_CNPJ, CNPJ_Titular).
+    if logical == 'cnpj':
+        for c in df.columns:
+            if 'cnpj' in _key(c):
+                return c
     return None
 
 
