@@ -18,7 +18,7 @@ sources:
 columns:
   uf: ["UF", "uf", "Estado", "Unidade Federativa"]
   municipio: ["Município", "Municipio", "municipio", "Cidade"]
-  cnpj: ["CNPJ", "cnpj", "CNPJ/CPF", "Documento"]
+  cnpj: ["CNPJ", "cnpj", "CNPJ/CPF", "CPF_CNPJ", "CPF/CNPJ", "CNPJ_CPF", "Documento"]
   cpf: ["CPF", "cpf"]
   titular: ["Titular", "titular", "Nome", "Razão Social", "Razao Social", "Empresa"]
   processo: ["Processo", "processo", "Número do processo", "NUP"]
