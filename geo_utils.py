@@ -102,7 +102,9 @@ def stats_municipio(base: pd.DataFrame, empresas: pd.DataFrame) -> pd.DataFrame:
 BASES = [
     ('Satélite (Esri)', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
      'Tiles &copy; Esri, Maxar, Earthstar Geographics', 'abc'),
-    ('OpenStreetMap', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    ('OpenStreetMap', 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', 'abc'),
+    ('OpenStreetMap (original, só funciona no app online)', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
      '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', 'abc'),
     ('CARTO Positron (exige chave de API: marca d\'água)', 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
      '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>', 'abcd'),
