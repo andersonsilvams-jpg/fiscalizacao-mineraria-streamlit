@@ -98,14 +98,14 @@ def stats_municipio(base: pd.DataFrame, empresas: pd.DataFrame) -> pd.DataFrame:
 
 # ---------------- mapa Leaflet ----------------
 # Mapas de fundo. O servidor do OpenStreetMap bloqueia páginas abertas direto do computador (file://, sem Referer),
-# então o padrão é o CARTO (também baseado em dados do OSM); o OpenStreetMap continua disponível no seletor de camadas.
+# o CARTO passou a exigir chave de API (marca d'água); o padrão é o Esri e OpenStreetMap/CARTO ficam como opções no seletor.
 BASES = [
-    ('CARTO Positron (claro)', 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>', 'abcd'),
-    ('OpenStreetMap', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', 'abc'),
     ('Satélite (Esri)', 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
      'Tiles &copy; Esri, Maxar, Earthstar Geographics', 'abc'),
+    ('OpenStreetMap', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', 'abc'),
+    ('CARTO Positron (exige chave de API: marca d\'água)', 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+     '&copy; contribuidores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>', 'abcd'),
 ]
 
 CORES = {'Alta': '#d62728', 'Média': '#ff9f1c', 'Baixa': '#2a9d8f', 'Sem base Crea': '#6c757d', 'Sem CFEM': '#9aa0a6'}
