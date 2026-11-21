@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from anm_client import download_dataset
-from data_utils import CONFIG, read_uploaded, normalize, enrich, company_summary
+from data_utils import CONFIG, read_uploaded, normalize, enrich, company_summary, export_frames
 
 st.set_page_config(page_title=CONFIG['app']['title'], page_icon='⛏️', layout='wide')
 
@@ -121,7 +121,10 @@ elif page == 'Empresas':
             mask = view.astype(str).apply(lambda col: col.str.contains(q, case=False, na=False)).any(axis=1)
             view = view[mask]
         st.dataframe(view, use_container_width=True, hide_index=True)
-        st.download_button('Baixar fila em CSV', view.to_csv(index=False).encode('utf-8-sig'), 'fila_fiscalizacao.csv', 'text/csv')
+        _csv, _xlsx = export_frames(view)
+        d1, d2 = st.columns(2)
+        d1.download_button('Baixar fila em CSV (Excel pt-BR)', _csv, 'fila_fiscalizacao.csv', 'text/csv')
+        d2.download_button('Baixar fila em XLSX', _xlsx, 'fila_fiscalizacao.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         st.caption('“Sem registro localizado” não equivale, por si só, a irregularidade. Use a fila para diligência e confirmação.')
 
 elif page == 'Legislação e fontes':
