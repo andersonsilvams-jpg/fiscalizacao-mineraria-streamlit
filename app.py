@@ -2,11 +2,11 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from anm_client import download_dataset, download_bytes
 from sigmine_utils import read_sigmine, pontos_empresas
 import copy
 import streamlit.components.v1 as components
-from geo_utils import municipios_ibge, ler_kml, stats_municipio, montar_mapa
+from geo_utils import ler_kml, stats_municipio, montar_mapa
+from loader import UFS, PASSOS, executar_passo, limpar_cache
 from data_utils import CONFIG, read_uploaded, normalize, enrich, company_summary, export_frames
 
 st.set_page_config(page_title=CONFIG['app']['title'], page_icon='⛏️', layout='wide')
@@ -15,49 +15,94 @@ if 'minerios' not in st.session_state: st.session_state.minerios = pd.DataFrame(
 if 'crea' not in st.session_state: st.session_state.crea = pd.DataFrame()
 if 'sigmine' not in st.session_state: st.session_state.sigmine = pd.DataFrame()
 if 'municipios' not in st.session_state: st.session_state.municipios = None
+if 'carga' not in st.session_state: st.session_state.carga = {}        # passo -> (ok, mensagem)
+if 'frames' not in st.session_state: st.session_state.frames = {}      # passo -> DataFrame (CFEM / Cadastro)
+if 'uf_ativa' not in st.session_state: st.session_state.uf_ativa = None
+if 'tls_fallback' not in st.session_state: st.session_state.tls_fallback = False
 
 
 def sem_valores(df):
     """Oculta as colunas de valor por ano (CFEM 2022, CFEM 2023...), mantendo 'anos_cfem'."""
     return df.drop(columns=[c for c in df.columns if str(c).startswith('CFEM ')])
 
+def mostrar_html(html, altura):
+    """st.iframe (Streamlit recente); components.html nas versões antigas."""
+    if hasattr(st, 'iframe'):
+        st.iframe(html, height=altura)
+    else:
+        components.html(html, height=altura, scrolling=False)
+
+
+def zerar_carga():
+    st.session_state.update(frames={}, carga={}, sigmine=pd.DataFrame(), municipios=None, minerios=pd.DataFrame(), tls_fallback=False)
+
+
+def guardar(passo, dados):
+    if passo in ('cfem', 'cadastro_mineiro'):
+        st.session_state.frames[passo] = dados
+        partes = [st.session_state.frames[p] for p in ('cfem', 'cadastro_mineiro') if p in st.session_state.frames and len(st.session_state.frames[p])]
+        st.session_state.minerios = pd.concat(partes, ignore_index=True, sort=False) if partes else pd.DataFrame()
+    elif passo == 'sigmine':
+        st.session_state.sigmine = dados
+    elif passo == 'municipios':
+        st.session_state.municipios = dados
+
+
 with st.sidebar:
     st.title('Fiscalização Minerária')
     st.caption('Sistema Confea/Crea • ANM')
-    page = st.radio('Navegação', ['Painel', 'Empresas', 'Mapa', 'Importação de dados', 'Legislação e fontes', 'Checklist remoto'])
+    _padrao = CONFIG['app'].get('default_uf', 'MS')
+    uf = st.selectbox('Estado', UFS, index=UFS.index(_padrao) if _padrao in UFS else 0,
+                      help='Ao escolher o estado, o app baixa CFEM, Cadastro Mineiro, SIGMINE e limites municipais.')
+    box_lista = st.container()
+    box_botoes = st.container()
+    with box_botoes:
+        _falhas = [p for p, (ok, _) in st.session_state.carga.items() if not ok]
+        tentar = st.button('Tentar novamente o que falhou', use_container_width=True) if _falhas else False
+        recarregar = st.button('Recarregar tudo (ignorar cache)', use_container_width=True)
     st.divider()
-    if st.button('Atualizar dados públicos da ANM', use_container_width=True):
-        with st.spinner('Baixando CFEM e Cadastro Mineiro...'):
-            frames, sources, errors = [], [], []
-            direct = st.session_state.get('anm_direct_urls', {})
-            for dataset in ('cfem', 'cadastro_mineiro'):
-                try:
-                    df, meta = download_dataset(dataset, direct.get(dataset) or None)
-                    df['fonte'] = dataset
-                    frames.append(df); sources.append(meta)
-                except Exception as exc: errors.append(f'{dataset}: {exc}')
-            if frames:
-                raw_all = pd.concat(frames, ignore_index=True, sort=False)
-                st.session_state.minerios = normalize(raw_all)
-                if st.session_state.minerios.empty:
-                    st.error('Os arquivos foram baixados, mas nenhuma linha tem CNPJ válido (14 dígitos). '
-                             'Confira abaixo as colunas recebidas e ajuste os nomes em config.yaml (seção columns).')
-                    for (ds, f) in zip(('cfem', 'cadastro_mineiro'), frames):
-                        st.caption(f'{ds}: {len(f):,} linhas • colunas: ' + ', '.join(map(str, f.columns)))
-                        st.dataframe(f.head(3), use_container_width=True)
-                st.session_state.anm_sources = sources
-                st.session_state.anm_updated = pd.Timestamp.now(tz='UTC').isoformat()
-                st.success(f'{len(st.session_state.minerios):,} linhas empresariais carregadas.')
-                if any(s.get('insecure_tls_fallback') for s in sources):
-                    st.warning('A ANM foi acessada por fallback TLS restrito ao domínio público dadosabertos.anm.gov.br. Verifique a atualização do certificado do servidor ANM antes de uso institucional.')
-            if errors: st.warning(' | '.join(errors))
-    if st.session_state.get('anm_updated'):
-        st.caption('Última atualização: ' + st.session_state.anm_updated)
+    page = st.radio('Navegação', ['Painel', 'Empresas', 'Mapa', 'Importação de dados', 'Legislação e fontes', 'Checklist remoto'])
     st.caption('A base pública é um apoio à triagem. A confirmação de infração exige análise do agente fiscal.')
     st.divider()
-    _ufs = sorted({u for u in st.session_state.minerios.get('uf', pd.Series(dtype=str)).dropna().tolist() if u})
-    _padrao = [CONFIG['app'].get('default_uf')] if CONFIG['app'].get('default_uf') in _ufs else []
-    ufs = st.multiselect('UF', _ufs, default=_padrao, placeholder='Todas as UFs')
+
+# ---- carga automática: troca de estado, recarga total ou retentativa dos passos com falha
+_passos = []
+if st.session_state.uf_ativa != uf:
+    zerar_carga(); st.session_state.uf_ativa = uf; _passos = list(PASSOS)
+elif recarregar:
+    limpar_cache(); zerar_carga(); _passos = list(PASSOS)
+elif tentar:
+    _passos = list(_falhas)
+if _passos:
+    with st.sidebar:
+        with st.status(f'Carregando dados de {uf}...', expanded=True) as _st:
+            for _p in _passos:
+                st.write(f'⏳ {PASSOS[_p]}...')
+                try:
+                    _dados, _tls, _msg = executar_passo(_p, uf)
+                    guardar(_p, _dados)
+                    st.session_state.carga[_p] = (True, _msg)
+                    st.session_state.tls_fallback = st.session_state.tls_fallback or _tls
+                except Exception as exc:
+                    st.session_state.carga[_p] = (False, str(exc)[:300])
+            _ok = all(v[0] for v in st.session_state.carga.values())
+            _st.update(label=f'Dados de {uf} ' + ('carregados' if _ok else 'carregados com falhas'), state='complete' if _ok else 'error', expanded=False)
+        st.session_state.anm_updated = pd.Timestamp.now(tz='UTC').isoformat()
+    st.rerun()
+
+with box_lista:
+    for _p, _nome in PASSOS.items():
+        if _p in st.session_state.carga:
+            _ok, _msg = st.session_state.carga[_p]
+            st.caption(f"{'✅' if _ok else '❌'} **{_nome}** — {_msg}")
+        else:
+            st.caption(f'⏸️ **{_nome}** — não carregado')
+    if st.session_state.tls_fallback:
+        st.caption('⚠️ ANM acessada por fallback TLS restrito ao domínio da ANM. Gere `certs/anm_chain.pem` para verificação completa.')
+    if st.session_state.get('anm_updated'):
+        st.caption('Última atualização: ' + st.session_state.anm_updated[:19].replace('T', ' ') + ' UTC')
+
+ufs = [uf]
 
 base = enrich(st.session_state.minerios, st.session_state.crea)
 if ufs and not base.empty: base = base[base.uf.isin(ufs)]
@@ -82,7 +127,7 @@ def aviso_ano():
 
 if page == 'Importação de dados':
     st.header('Importação e atualização de dados')
-    st.info('Use “Atualizar dados públicos da ANM” na barra lateral para buscar CFEM e Cadastro Mineiro. O upload manual permanece como contingência.')
+    st.info('Os dados da ANM são carregados automaticamente ao escolher o estado (barra lateral). Esta página é o plano B: links diretos e upload manual. Depois de salvar links diretos, use “Recarregar tudo” na barra lateral.')
     st.subheader('Links diretos opcionais dos arquivos')
     st.caption('O catálogo dados.gov.br é dinâmico. Se a página não expuser automaticamente os CSVs, cole aqui os links diretos dos recursos, um por linha.')
     c0, c1 = st.columns(2)
@@ -92,7 +137,7 @@ if page == 'Importação de dados':
         cm_urls = st.text_area('Recursos Cadastro Mineiro', value='\n'.join(st.session_state.get('anm_direct_urls', {}).get('cadastro_mineiro', [])), height=100)
     if st.button('Salvar links diretos'):
         st.session_state.anm_direct_urls = {'cfem': [x.strip() for x in cfem_urls.splitlines() if x.strip()], 'cadastro_mineiro': [x.strip() for x in cm_urls.splitlines() if x.strip()]}
-        st.success('Links salvos nesta sessão. Use o botão de atualização na barra lateral.')
+        st.success('Links salvos nesta sessão. Use “Recarregar tudo (ignorar cache)” na barra lateral.')
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
@@ -160,37 +205,15 @@ elif page == 'Mapa':
     st.header('Mapa da exploração mineral')
     st.caption('Cada ponto é uma área do SIGMINE (ANM) cujo processo aparece na CFEM das empresas filtradas. '
                'O ponto marca o centro da área do processo; não é a localização exata da lavra.')
-    uf_padrao = ufs[0] if len(ufs) == 1 else CONFIG['app'].get('default_uf', 'MS')
-    with st.expander('1) Dados do SIGMINE (ANM)', expanded=st.session_state.sigmine.empty):
-        c1, c2 = st.columns([1, 3])
-        uf_sig = c1.text_input('UF', value=uf_padrao, key='sigmine_uf', max_chars=2)
-        url_sig = c2.text_input('Endereço do arquivo (use {uf} para a sigla)', value=CONFIG['app'].get('sigmine_url', ''), key='sigmine_url')
-        if st.button('Baixar SIGMINE da ANM'):
-            try:
-                with st.spinner('Baixando SIGMINE...'):
-                    url = url_sig.replace('{uf}', uf_sig.strip().upper())
-                    raw_sig, insec = download_bytes(url)
-                    st.session_state.sigmine = read_sigmine(raw_sig, url)
-                st.success(f'{len(st.session_state.sigmine):,} áreas carregadas do SIGMINE.')
-                if insec: st.warning('Download feito com fallback TLS restrito ao domínio da ANM.')
-            except Exception as e: st.error(f'Não foi possível baixar/ler o SIGMINE: {e}')
-        up_sig = st.file_uploader('Ou envie o arquivo (shapefile .zip ou .geojson)', type=['zip', 'geojson', 'json'], key='sigmine_upload')
+    _falhou_geo = any(not st.session_state.carga.get(p, (True, ''))[0] for p in ('sigmine', 'municipios'))
+    with st.expander('Plano B: enviar arquivos manualmente (SIGMINE e municípios)', expanded=_falhou_geo):
+        up_sig = st.file_uploader('SIGMINE (shapefile .zip ou .geojson)', type=['zip', 'geojson', 'json'], key='sigmine_upload')
         if up_sig and st.button('Carregar arquivo SIGMINE'):
             try:
                 st.session_state.sigmine = read_sigmine(up_sig.getvalue(), up_sig.name)
                 st.success(f'{len(st.session_state.sigmine):,} áreas carregadas do SIGMINE.')
             except Exception as e: st.error(str(e))
-    with st.expander('2) Limites dos municípios', expanded=not st.session_state.municipios):
-        st.caption('Automático pelo IBGE, ou envie um KML/KMZ com os municípios.')
-        m1, m2 = st.columns([1, 3])
-        uf_mun = m1.text_input('UF', value=uf_padrao, key='mun_uf', max_chars=2)
-        if m2.button('Baixar limites municipais (IBGE)'):
-            try:
-                with st.spinner('Baixando malha municipal...'):
-                    st.session_state.municipios = municipios_ibge(uf_mun)
-                st.success(f"{len(st.session_state.municipios['features'])} municípios carregados.")
-            except Exception as e: st.error(f'Não foi possível baixar a malha do IBGE: {e}')
-        up_kml = st.file_uploader('Ou envie KML/KMZ dos municípios', type=['kml', 'kmz'], key='kml_upload')
+        up_kml = st.file_uploader('Limites dos municípios (KML/KMZ)', type=['kml', 'kmz'], key='kml_upload')
         if up_kml and st.button('Carregar KML/KMZ'):
             try:
                 st.session_state.municipios = ler_kml(up_kml.getvalue(), up_kml.name)
@@ -198,9 +221,9 @@ elif page == 'Mapa':
             except Exception as e: st.error(str(e))
     sig = st.session_state.sigmine
     if base.empty:
-        st.warning('Carregue os dados da ANM (CFEM) para cruzar com o SIGMINE.')
+        st.warning('Sem dados da CFEM para este estado. Veja o status da carga na barra lateral.')
     elif sig.empty:
-        st.info('Carregue o SIGMINE acima para ver o mapa.')
+        st.info('SIGMINE não carregado. Veja o status na barra lateral ou use o plano B acima.')
     else:
         pontos, stt = pontos_empresas(base, empresas, sig)
         a, b, c = st.columns(3)
@@ -230,7 +253,7 @@ elif page == 'Mapa':
                 try:
                     mun = copy.deepcopy(st.session_state.municipios) if st.session_state.municipios else None
                     mapa = montar_mapa(pts, mun, stats_municipio(base, empresas), colorir, extras)
-                    components.html(mapa.get_root().render(), height=680, scrolling=False)
+                    mostrar_html(mapa.get_root().render(), 680)
                     st.caption('Use o controle no canto superior direito para ligar/desligar camadas. Passe o mouse sobre o ponto '
                                '(titular, CNPJ, anos da CFEM, fase, substância) e sobre o município (empresas e prioridade Alta). '
                                'Mapa base: © OpenStreetMap; limites: IBGE.')

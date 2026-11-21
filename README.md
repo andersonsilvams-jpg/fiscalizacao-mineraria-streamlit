@@ -117,3 +117,14 @@ certificado normalmente e o aviso deixa de aparecer. Sem o arquivo, o fallback r
 Página **Mapa**: (1) baixe o SIGMINE da UF (`https://app.anm.gov.br/dadosabertos/SIGMINE/PROCESSOS_MINERARIOS/{UF}.zip`)
 ou envie o shapefile .zip; (2) baixe os limites municipais do IBGE ou envie um KML/KMZ dos municípios.
 Pontos por prioridade, municípios coloridos pelo nº de empresas Alta e exportação do mapa em HTML.
+
+
+## Fluxo por estado
+
+1. Escolha o **Estado** na barra lateral (MS é o padrão).
+2. O app baixa automaticamente, em sequência: CFEM e Cadastro Mineiro (ANM, filtrados pela UF), SIGMINE da UF e a malha
+   municipal do IBGE. Cada passo é guardado em cache por 24 h; trocar de estado e voltar não baixa de novo.
+3. Se um passo falhar, os demais continuam. A barra lateral mostra ✅/❌ por passo, com **Tentar novamente o que falhou**
+   e **Recarregar tudo (ignorar cache)**.
+4. A base do Crea (dado interno) continua por upload em **Importação de dados**. Sem ela, a prioridade aparece como "Sem base Crea".
+5. Plano B: links diretos e upload manual (CFEM/Cadastro em **Importação de dados**; SIGMINE e KML/KMZ na página **Mapa**).
