@@ -27,6 +27,10 @@ Os recursos atualmente identificados no catálogo são:
 - Licenciamento: `https://dadosabertos.anm.gov.br/SCM/Licenciamento.csv`
 - CFEM 2022–2026: `https://dadosabertos.anm.gov.br/CFEM/CFEM_Arrecadacao_2022_2026.csv`
 
+### Certificado TLS da ANM
+
+Em algumas instalações do Python/Windows, o servidor `dadosabertos.anm.gov.br` apresenta uma cadeia de certificado que não é reconhecida pelo pacote de certificados local, embora o navegador consiga acessar o arquivo. O cliente tenta primeiro HTTPS com validação normal. Se ocorrer essa falha, ele usa fallback somente para o host público `dadosabertos.anm.gov.br` e mostra um aviso no painel. Não desabilite a validação para outros domínios. A correção definitiva é a ANM atualizar a cadeia do certificado ou a máquina receber a CA intermediária correta.
+
 ```bash
 pip install -r requirements.txt
 python scripts/update_anm.py --dry-run
@@ -93,3 +97,23 @@ O painel não autua automaticamente. “Sem registro localizado” significa que
 - Deploy no Streamlit Community Cloud: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy
 - Organização de arquivos no Streamlit Community Cloud: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization
 - GitHub Actions — agendamento: https://docs.github.com/actions/using-workflows/workflow-syntax-for-github-actions
+
+## Certificado TLS da ANM (remover o aviso de fallback)
+
+O servidor `dadosabertos.anm.gov.br` não envia o certificado intermediário, então o Python não consegue
+verificar a conexão. Para gerar a cadeia (uma vez, na sua máquina):
+
+```
+pip install cryptography
+python scripts/fetch_anm_chain.py   # cobre dadosabertos.anm.gov.br e app.anm.gov.br
+```
+
+Isso cria `certs/anm_chain.pem`. Suba esse arquivo no GitHub: o app e o workflow passam a verificar o
+certificado normalmente e o aviso deixa de aparecer. Sem o arquivo, o fallback restrito ao domínio da ANM continua valendo.
+
+
+## Mapa (Leaflet/OpenStreetMap)
+
+Página **Mapa**: (1) baixe o SIGMINE da UF (`https://app.anm.gov.br/dadosabertos/SIGMINE/PROCESSOS_MINERARIOS/{UF}.zip`)
+ou envie o shapefile .zip; (2) baixe os limites municipais do IBGE ou envie um KML/KMZ dos municípios.
+Pontos por prioridade, municípios coloridos pelo nº de empresas Alta e exportação do mapa em HTML.

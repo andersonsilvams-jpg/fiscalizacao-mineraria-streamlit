@@ -4,7 +4,9 @@ import plotly.express as px
 import streamlit as st
 from anm_client import download_dataset, download_bytes
 from sigmine_utils import read_sigmine, pontos_empresas
-import numpy as np
+import copy
+import streamlit.components.v1 as components
+from geo_utils import municipios_ibge, ler_kml, stats_municipio, montar_mapa
 from data_utils import CONFIG, read_uploaded, normalize, enrich, company_summary, export_frames
 
 st.set_page_config(page_title=CONFIG['app']['title'], page_icon='⛏️', layout='wide')
@@ -12,6 +14,7 @@ st.set_page_config(page_title=CONFIG['app']['title'], page_icon='⛏️', layout
 if 'minerios' not in st.session_state: st.session_state.minerios = pd.DataFrame()
 if 'crea' not in st.session_state: st.session_state.crea = pd.DataFrame()
 if 'sigmine' not in st.session_state: st.session_state.sigmine = pd.DataFrame()
+if 'municipios' not in st.session_state: st.session_state.municipios = None
 
 
 def sem_valores(df):
@@ -64,6 +67,18 @@ with st.sidebar:
 if municipio != 'Todos' and not base.empty: base = base[base.municipio.eq(municipio)]
 empresas = company_summary(base)
 sem_ano = (not empresas.empty) and empresas['ultimo_ano_cfem'].isna().all()
+ano_col = base['_ano_coluna'].iloc[0] if (not base.empty and '_ano_coluna' in base) else None
+
+
+def aviso_ano():
+    if sem_ano:
+        st.warning('Coluna do ano de recolhimento da CFEM não identificada: a prioridade não considera anos. '
+                   'Veja as colunas recebidas abaixo e ajuste os nomes em config.yaml (columns > ano).')
+        with st.expander('Colunas recebidas da ANM'):
+            st.write([c for c in st.session_state.minerios.columns if not str(c).startswith('_')])
+    elif ano_col:
+        st.caption(f'Ano de recolhimento da CFEM lido da coluna “{ano_col}”.')
+
 
 if page == 'Importação de dados':
     st.header('Importação e atualização de dados')
@@ -105,8 +120,7 @@ elif page == 'Painel':
     if base.empty:
         st.warning('Nenhum dado empresarial carregado. Use “Importação de dados” para carregar uma base oficial da ANM.')
     else:
-        if sem_ano:
-            st.warning('Coluna do ano de recolhimento da CFEM não identificada: a prioridade não considera anos. Ajuste os nomes em config.yaml (columns > ano).')
+        aviso_ano()
         a,b,c,d = st.columns(4)
         a.metric('Empresas', f'{len(empresas):,}')
         b.metric('Processos/linhas', f'{len(base):,}')
@@ -126,8 +140,7 @@ elif page == 'Empresas':
     st.header('Empresas e empreendimentos')
     if empresas.empty: st.info('Carregue uma base para consultar empresas.')
     else:
-        if sem_ano:
-            st.warning('Coluna do ano de recolhimento da CFEM não identificada: a prioridade não considera anos. Ajuste os nomes em config.yaml (columns > ano).')
+        aviso_ano()
         q = st.text_input('Pesquisar por CNPJ, razão social, município ou substância')
         prioridades = st.multiselect('Prioridade', sorted(empresas.prioridade.dropna().unique()), default=sorted(empresas.prioridade.dropna().unique()))
         mostrar_valores = st.checkbox('Mostrar também o valor recolhido por ano (R$)', value=False)
@@ -147,9 +160,10 @@ elif page == 'Mapa':
     st.header('Mapa da exploração mineral')
     st.caption('Cada ponto é uma área do SIGMINE (ANM) cujo processo aparece na CFEM das empresas filtradas. '
                'O ponto marca o centro da área do processo; não é a localização exata da lavra.')
-    with st.expander('Carregar dados do SIGMINE', expanded=st.session_state.sigmine.empty):
+    uf_padrao = ufs[0] if len(ufs) == 1 else CONFIG['app'].get('default_uf', 'MS')
+    with st.expander('1) Dados do SIGMINE (ANM)', expanded=st.session_state.sigmine.empty):
         c1, c2 = st.columns([1, 3])
-        uf_sig = c1.text_input('UF', value=(ufs[0] if len(ufs) == 1 else CONFIG['app'].get('default_uf', 'MS')), key='sigmine_uf', max_chars=2)
+        uf_sig = c1.text_input('UF', value=uf_padrao, key='sigmine_uf', max_chars=2)
         url_sig = c2.text_input('Endereço do arquivo (use {uf} para a sigla)', value=CONFIG['app'].get('sigmine_url', ''), key='sigmine_url')
         if st.button('Baixar SIGMINE da ANM'):
             try:
@@ -165,6 +179,22 @@ elif page == 'Mapa':
             try:
                 st.session_state.sigmine = read_sigmine(up_sig.getvalue(), up_sig.name)
                 st.success(f'{len(st.session_state.sigmine):,} áreas carregadas do SIGMINE.')
+            except Exception as e: st.error(str(e))
+    with st.expander('2) Limites dos municípios', expanded=not st.session_state.municipios):
+        st.caption('Automático pelo IBGE, ou envie um KML/KMZ com os municípios.')
+        m1, m2 = st.columns([1, 3])
+        uf_mun = m1.text_input('UF', value=uf_padrao, key='mun_uf', max_chars=2)
+        if m2.button('Baixar limites municipais (IBGE)'):
+            try:
+                with st.spinner('Baixando malha municipal...'):
+                    st.session_state.municipios = municipios_ibge(uf_mun)
+                st.success(f"{len(st.session_state.municipios['features'])} municípios carregados.")
+            except Exception as e: st.error(f'Não foi possível baixar a malha do IBGE: {e}')
+        up_kml = st.file_uploader('Ou envie KML/KMZ dos municípios', type=['kml', 'kmz'], key='kml_upload')
+        if up_kml and st.button('Carregar KML/KMZ'):
+            try:
+                st.session_state.municipios = ler_kml(up_kml.getvalue(), up_kml.name)
+                st.success(f"{len(st.session_state.municipios['features'])} municípios carregados do KML.")
             except Exception as e: st.error(str(e))
     sig = st.session_state.sigmine
     if base.empty:
@@ -182,35 +212,30 @@ elif page == 'Mapa':
             st.write('Exemplos CFEM:', stt['exemplo_cfem'], ' | Exemplos SIGMINE:', stt['exemplo_sigmine'])
             if stt['sem_chave']: st.caption(f"{stt['sem_chave']:,} processos da CFEM sem ano identificável (coluna AnoDoProcesso ou número no formato NNNNNN/AAAA).")
         else:
-            ordem = ['Alta', 'Média', 'Baixa', 'Sem base Crea']
-            cores = {'Alta': '#d62728', 'Média': '#ff9f1c', 'Baixa': '#2a9d8f', 'Sem base Crea': '#6c757d'}
-            f1, f2 = st.columns([2, 1])
-            sel = f1.multiselect('Prioridade no mapa', [o for o in ordem if o in set(pontos['prioridade'].dropna())], default=[o for o in ordem if o in set(pontos['prioridade'].dropna())])
+            disp = [o for o in ['Alta', 'Média', 'Baixa', 'Sem base Crea'] if o in set(pontos['prioridade'].dropna())]
+            f1, f2, f3 = st.columns([2, 1, 1])
+            sel = f1.multiselect('Prioridade no mapa', disp, default=disp)
             outras = f2.checkbox('Incluir demais áreas do SIGMINE (sem CFEM)', value=False)
+            colorir = f3.checkbox('Colorir municípios (empresas Alta)', value=True)
             pts = pontos[pontos['prioridade'].isin(sel)].copy()
-            pts['titular_sigmine'] = pts['titular_sigmine'].replace('', pd.NA).fillna('—')
-            pts['grupo'] = pts['prioridade']
+            extras = None
             if outras:
-                resto = sig[~sig['chave'].isin(stt['chaves_casadas']) & sig['lat'].notna()].copy()
-                resto['grupo'] = 'Sem CFEM'; resto['cnpj'] = ''; resto['anos_cfem'] = ''
-                pts = pd.concat([resto, pts], ignore_index=True, sort=False)
-                cores['Sem CFEM'] = '#c8ccd0'; ordem = ['Sem CFEM'] + ordem
+                extras = sig[~sig['chave'].isin(stt['chaves_casadas']) & sig['lat'].notna()]
+                if len(extras) > 6000:
+                    st.caption(f'{len(extras):,} áreas sem CFEM; exibindo as 6.000 primeiras para manter o mapa leve.')
+                    extras = extras.head(6000)
             if pts.empty:
                 st.info('Nenhum ponto para os filtros escolhidos.')
             else:
-                span = max(pts['lat'].max() - pts['lat'].min(), pts['lon'].max() - pts['lon'].min(), 0.1)
-                zoom = float(max(3.0, min(10.0, np.log2(360 / span) - 0.4)))
-                kw = dict(lat='lat', lon='lon', color='grupo', color_discrete_map=cores, category_orders={'grupo': ordem},
-                          hover_name='titular_sigmine', hover_data={'cnpj': True, 'anos_cfem': True, 'fase': True, 'substancia_sigmine': True, 'processo_sigmine': True, 'lat': False, 'lon': False, 'grupo': False},
-                          center={'lat': float(pts['lat'].mean()), 'lon': float(pts['lon'].mean())}, zoom=zoom, height=650)
                 try:
-                    fig = px.scatter_map(pts, map_style='open-street-map', **kw)
-                except AttributeError:
-                    fig = px.scatter_mapbox(pts, mapbox_style='open-street-map', **kw)
-                fig.update_traces(marker={'size': 9})
-                fig.update_layout(margin={'l': 0, 'r': 0, 't': 0, 'b': 0}, legend_title_text='Prioridade')
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption('Passe o mouse sobre o ponto para ver o titular (SIGMINE), CNPJ, anos de recolhimento da CFEM, fase e substância.')
+                    mun = copy.deepcopy(st.session_state.municipios) if st.session_state.municipios else None
+                    mapa = montar_mapa(pts, mun, stats_municipio(base, empresas), colorir, extras)
+                    components.html(mapa.get_root().render(), height=680, scrolling=False)
+                    st.caption('Use o controle no canto superior direito para ligar/desligar camadas. Passe o mouse sobre o ponto '
+                               '(titular, CNPJ, anos da CFEM, fase, substância) e sobre o município (empresas e prioridade Alta). '
+                               'Mapa base: © OpenStreetMap; limites: IBGE.')
+                    st.download_button('Baixar mapa em HTML (abre no navegador; precisa de internet para o mapa base)', mapa.get_root().render().encode('utf-8'), 'mapa_mineracao.html', 'text/html')
+                except Exception as e: st.error(f'Erro ao montar o mapa: {e}')
                 cols_t = [c for c in ['cnpj', 'titular_sigmine', 'prioridade', 'anos_cfem', 'fase', 'substancia_sigmine', 'processo_sigmine', 'lat', 'lon'] if c in pontos]
                 _csv, _xlsx = export_frames(pontos[cols_t])
                 d1, d2 = st.columns(2)

@@ -2,6 +2,8 @@ app:
   title: "Fiscalização Minerária — Sistema Confea/Crea"
   default_uf: "MS"
   max_upload_mb: 500
+  sigmine_url: "https://app.anm.gov.br/dadosabertos/SIGMINE/PROCESSOS_MINERARIOS/{uf}.zip"   # {uf} = sigla da UF
+  anos_recentes: 2   # CFEM em algum dos N anos mais recentes da base = indício forte de operação
 
 sources:
   anm_catalogo: "https://www.gov.br/anm/pt-br/acesso-a-informacao/dados-abertos/bases-de-dados"
@@ -25,3 +27,6 @@ columns:
   substancia: ["Substância", "Substancia", "substancia", "Mineral"]
   fase: ["Fase", "fase", "Regime", "Situação", "Situacao"]
   quantidade: ["Produção", "Producao", "Quantidade", "CFEM"]
+  ano: ["Ano", "Ano Base", "AnoBase", "Ano Arrecadação", "Ano Arrecadacao", "Ano Recolhimento"]
+  valor: ["ValorRecolhido", "Valor Recolhido", "Valor Recolhimento", "Valor CFEM", "Valor"]
+  ano_processo: ["AnoDoProcesso", "Ano do Processo", "AnoProcesso", "Ano Processo"]
