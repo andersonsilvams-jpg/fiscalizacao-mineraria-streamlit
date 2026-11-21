@@ -13,6 +13,11 @@ ANM_URL_CADASTRO_MINEIRO, ANM_URL_AMB, ANM_URL_CFEM, ANM_URL_SIGMINE,
 ANM_URL_SIGBM.
 """
 from __future__ import annotations
+try:
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
 import argparse, hashlib, json, os, re, sys
 from datetime import datetime, timezone
 from pathlib import Path
