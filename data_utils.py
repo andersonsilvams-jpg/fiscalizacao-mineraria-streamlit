@@ -46,6 +46,19 @@ def read_uploaded(uploaded):
     raise ValueError('Formato não suportado. Use CSV, XLSX ou Parquet.')
 
 
+def _coluna_ano(df):
+    """Quando 'ano' não casou pelos aliases: coluna 'AnoXxx' (exceto do processo) ou data de recolhimento/crédito."""
+    for c in df.columns:
+        k = _key(c)
+        if k.startswith('ano') and 'process' not in k:
+            return c
+    for c in df.columns:
+        k = _key(c)
+        if 'data' in k and any(t in k for t in ('recolh', 'credit', 'arrecad', 'pagament', 'compet')):
+            return c
+    return None
+
+
 def _num(v):
     """'1.234,56' -> 1234.56 ; '1234.56' -> 1234.56."""
     s = str(v).strip() if pd.notna(v) else ''
@@ -62,11 +75,19 @@ def _num(v):
 def normalize(df):
     if df is None or df.empty: return pd.DataFrame()
     out = df.copy()
+    out.columns = [str(c).replace('\ufeff', '').replace('ï»¿', '').strip() for c in out.columns]
     mapping = {}
     for logical in ALIASES:
         c = find_col(out, logical)
         if c: mapping[c] = logical
     out = out.rename(columns=mapping)
+    origem_ano = next((c for c, l in mapping.items() if l == 'ano'), None)
+    if origem_ano is None:
+        origem_ano = _coluna_ano(out)
+        if origem_ano is not None:
+            out['ano'] = pd.to_numeric(out[origem_ano].astype(str).str.extract(r'((?:19|20)\d{2})')[0], errors='coerce')
+    if origem_ano is not None:
+        out['_ano_coluna'] = origem_ano
     for c in ['uf','municipio','titular','substancia','fase','processo']:
         if c not in out: out[c] = ''
         out[c] = out[c].fillna('').astype(str).str.strip()
