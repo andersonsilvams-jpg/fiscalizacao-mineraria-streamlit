@@ -4,8 +4,10 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from urllib3.exceptions import InsecureRequestWarning
 
 HEADERS = {'User-Agent': 'FiscalizacaoMineraria/0.2 (+public-data-use)'}
+ANM_HOST = 'dadosabertos.anm.gov.br'
 DATASETS = {
     'cfem': 'https://dados.gov.br/dados/conjuntos-dados/sistema-arrecadacao',
     'cadastro_mineiro': 'https://dados.gov.br/dados/conjuntos-dados/sistema-de-cadastro-mineiro',
@@ -52,6 +54,22 @@ def _read_bytes(name: str, raw: bytes) -> pd.DataFrame:
     raise ValueError(f'Formato não suportado: {name}')
 
 
+def _get(url: str, **kwargs):
+    """Tenta TLS normal; fallback restrito ao host público da ANM.
+
+    O servidor de arquivos da ANM pode apresentar uma cadeia intermediária
+    que não é reconhecida por algumas instalações Python/Windows. O fallback
+    não é aplicado a outros domínios e a interface informa quando foi usado.
+    """
+    try:
+        return requests.get(url, headers=HEADERS, timeout=(30, 300), **kwargs), False
+    except requests.exceptions.SSLError:
+        if ANM_HOST not in url.lower():
+            raise
+        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+        return requests.get(url, headers=HEADERS, timeout=(30, 300), verify=False, **kwargs), True
+
+
 def download_dataset(dataset: str, resource_urls: list[str] | None = None) -> tuple[pd.DataFrame, dict]:
     page = DATASETS[dataset]
     links = resource_urls or [RESOURCE_URLS[dataset]]
@@ -64,10 +82,12 @@ def download_dataset(dataset: str, resource_urls: list[str] | None = None) -> tu
     errors = []
     for url in links:
         try:
-            r = requests.get(url, headers=HEADERS, timeout=(30, 300))
+            r, insecure_tls = _get(url)
             r.raise_for_status()
-            frames.append(_read_bytes(url, r.content))
+            frame = _read_bytes(url, r.content)
+            frame.attrs['anm_insecure_tls_fallback'] = insecure_tls
+            frames.append(frame)
         except Exception as exc: errors.append(f'{url}: {exc}')
     if not frames:
         raise RuntimeError('Nenhum recurso pôde ser baixado. ' + ' | '.join(errors))
-    return pd.concat(frames, ignore_index=True, sort=False), {'dataset': dataset, 'page': page, 'resources': links, 'errors': errors}
+    return pd.concat(frames, ignore_index=True, sort=False), {'dataset': dataset, 'page': page, 'resources': links, 'errors': errors, 'insecure_tls_fallback': any(f.attrs.get('anm_insecure_tls_fallback', False) for f in frames)}
