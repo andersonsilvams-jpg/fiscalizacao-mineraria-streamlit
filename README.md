@@ -13,10 +13,19 @@ MVP em Streamlit para apoiar a fiscalização remota de empresas de mineração 
 - Exportação da fila de fiscalização em CSV.
 - Base legal e links oficiais.
 - Checklist de fiscalização remota.
+- Atualização automática de CFEM e Cadastro Mineiro pelo próprio painel.
+- Filtros operacionais por UF/Regional e município.
 
 ## Atualização automática da ANM
 
 O script `scripts/update_anm.py` descobre arquivos publicados nas páginas dos conjuntos da ANM, baixa os snapshots para `data/anm/` e grava `manifest.json` com data, URL, tamanho e SHA-256. Ele pode ser executado manualmente:
+
+No aplicativo, o fiscal não precisa procurar planilhas: o botão **Atualizar dados públicos da ANM** tenta buscar os recursos de CFEM e Cadastro Mineiro diretamente. Como o catálogo `dados.gov.br` carrega o conteúdo por JavaScript e pode proteger sua API, a tela também aceita links diretos dos arquivos como fallback administrativo. Esses links devem ser configurados uma única vez, não por fiscal a cada consulta.
+
+Os recursos atualmente identificados no catálogo são:
+
+- Licenciamento: `https://dadosabertos.anm.gov.br/SCM/Licenciamento.csv`
+- CFEM 2022–2026: `https://dadosabertos.anm.gov.br/CFEM/CFEM_Arrecadacao_2022_2026.csv`
 
 ```bash
 pip install -r requirements.txt
