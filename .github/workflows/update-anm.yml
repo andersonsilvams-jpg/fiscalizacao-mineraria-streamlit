@@ -30,4 +30,3 @@ jobs:
         with:
           name: anm-snapshot-${{ github.run_number }}
           path: data/anm/
-          retention-days: 30
