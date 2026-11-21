@@ -30,6 +30,10 @@ DATASETS = {
     'sigmine': 'https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-geograficas-da-mineracao-sigmine',
     'sigbm': 'https://dados.gov.br/dados/conjuntos-dados/barragens-de-mineracao',
 }
+RESOURCE_URLS = {
+    'cadastro_mineiro': 'https://dadosabertos.anm.gov.br/SCM/Licenciamento.csv',
+    'cfem': 'https://dadosabertos.anm.gov.br/CFEM/CFEM_Arrecadacao_2022_2026.csv',
+}
 EXTENSIONS = ('.csv', '.zip', '.xlsx', '.xls', '.parquet', '.kmz', '.kml', '.json')
 HEADERS = {'User-Agent': 'FiscalizacaoMineraria/0.1 (+public-data-downloader)'}
 
@@ -38,6 +42,9 @@ def discover(url: str) -> list[str]:
     override = next((os.getenv('ANM_URL_' + k.upper()) for k, v in DATASETS.items() if v == url and os.getenv('ANM_URL_' + k.upper())), None)
     if override:
         return [override]
+    for name, page in DATASETS.items():
+        if page == url and name in RESOURCE_URLS:
+            return [RESOURCE_URLS[name]]
     r = requests.get(url, headers=HEADERS, timeout=60)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, 'html.parser')
