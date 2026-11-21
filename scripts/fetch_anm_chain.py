@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.serialization import pkcs7
 from cryptography.x509.oid import AuthorityInformationAccessOID, ExtensionOID
 
 HOST = 'dadosabertos.anm.gov.br'
-HOSTS = ('dadosabertos.anm.gov.br', 'app.anm.gov.br')  # CSVs da CFEM/Cadastro e shapefiles do SIGMINE
+HOSTS = ('dadosabertos.anm.gov.br',)  # CFEM, Cadastro e SIGMINE (o endereço antigo app.anm.gov.br foi desativado em 30/06/2026)
 OUT = Path(__file__).resolve().parents[1] / 'certs' / 'anm_chain.pem'
 
 
