@@ -10,6 +10,7 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 from csv_utils import read_csv_bytes
+from tls_utils import anm_verify
 from bs4 import BeautifulSoup
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -67,6 +68,12 @@ def _get(url: str, **kwargs):
     except requests.exceptions.SSLError:
         if ANM_HOST not in url.lower():
             raise
+        bundle = anm_verify()
+        if bundle:
+            try:
+                return requests.get(url, headers=HEADERS, timeout=(30, 300), verify=bundle, **kwargs), False
+            except requests.exceptions.SSLError:
+                pass
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         return requests.get(url, headers=HEADERS, timeout=(30, 300), verify=False, **kwargs), True
 
