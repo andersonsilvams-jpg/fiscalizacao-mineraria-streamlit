@@ -92,7 +92,9 @@ def company_summary(df):
     if df.empty: return df
     agg = {'titular':lambda x: next((v for v in x if v), ''),'uf':'first','municipio':lambda x: ', '.join(sorted(set(v for v in x if v))), 'processo':'count','substancia':lambda x: ', '.join(sorted(set(v for v in x if v))), 'prioridade':'max','registro_crea':'first'}
     return df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo':'qtd_processos'})
-    def fmt_cnpj(value):
+
+
+def fmt_cnpj(value):
     """00000000000000 -> 00.000.000/0000-00 (como texto, o Excel preserva os zeros à esquerda)."""
     d = clean_doc(value)
     if len(d) < 14:
