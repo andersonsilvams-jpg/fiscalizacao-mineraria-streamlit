@@ -33,7 +33,7 @@ def read_uploaded(uploaded):
     raw = uploaded.getvalue()
     if name.endswith('.csv'):
         for enc in ('utf-8-sig', 'latin1'):
-            try: return pd.read_csv(io.BytesIO(raw), sep=None, engine='python', encoding=enc, low_memory=False)
+            try: return pd.read_csv(io.BytesIO(raw), sep=None, engine='python', encoding=enc)
             except Exception: pass
     if name.endswith(('.xlsx','.xls')):
         return pd.read_excel(io.BytesIO(raw))
