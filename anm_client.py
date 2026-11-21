@@ -6,7 +6,7 @@ except ImportError:
     pass
 
 import io, re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import pandas as pd
 import requests
 from csv_utils import read_csv_bytes
@@ -56,6 +56,18 @@ def _read_bytes(name: str, raw: bytes) -> pd.DataFrame:
     raise ValueError(f'Formato não suportado: {name}')
 
 
+def _is_anm_host(url: str) -> bool:
+    host = (urlparse(url).hostname or '').lower()
+    return host == 'anm.gov.br' or host.endswith('.anm.gov.br')
+
+
+def download_bytes(url: str) -> tuple[bytes, bool]:
+    """Baixa um arquivo da ANM. Retorna (conteúdo, usou_fallback_tls)."""
+    r, insecure = _get(url)
+    r.raise_for_status()
+    return r.content, insecure
+
+
 def _get(url: str, **kwargs):
     """Tenta TLS normal; fallback restrito ao host público da ANM.
 
@@ -66,7 +78,7 @@ def _get(url: str, **kwargs):
     try:
         return requests.get(url, headers=HEADERS, timeout=(30, 300), **kwargs), False
     except requests.exceptions.SSLError:
-        if ANM_HOST not in url.lower():
+        if not _is_anm_host(url):
             raise
         bundle = anm_verify()
         if bundle:
