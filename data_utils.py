@@ -178,6 +178,8 @@ def company_summary(df):
         resumo['prioridade'] = 'Sem base Crea'
 
     resumo = resumo.sort_values(by=['prioridade', 'qtd_processos'], key=lambda c: c.map(ORDEM_PRIORIDADE) if c.name == 'prioridade' else -c)
+    # texto legível (a prioridade acima já foi calculada com o valor booleano)
+    resumo['registro_crea'] = resumo['registro_crea'].map(lambda v: 'SEM BASE CREA' if pd.isna(v) else ('SIM' if v else 'NÃO'))
     ordem = ['cnpj', 'titular', 'uf', 'municipio', 'prioridade', 'registro_crea', 'anos_cfem', 'ultimo_ano_cfem'] + anos_cols + ['qtd_processos', 'substancia']
     return resumo[ordem].reset_index(drop=True)
 
