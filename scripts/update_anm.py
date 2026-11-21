@@ -18,6 +18,7 @@ try:
     truststore.inject_into_ssl()
 except ImportError:
     pass
+
 import argparse, hashlib, json, os, re, sys
 from datetime import datetime, timezone
 from pathlib import Path
