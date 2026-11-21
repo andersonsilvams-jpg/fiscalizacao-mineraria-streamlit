@@ -274,7 +274,7 @@ elif page == 'Mapa':
                     mostrar_html(mapa.get_root().render(), 680)
                     st.caption('Use o controle no canto superior direito para ligar/desligar camadas. Passe o mouse sobre o ponto '
                                '(titular, CNPJ, anos da CFEM, fase, substância) e sobre o município (empresas e prioridade Alta). '
-                               'Mapa base: CARTO/OpenStreetMap (troque no seletor de camadas, inclusive satélite); limites: IBGE.')
+                               'Mapa base: Esri (troque no seletor de camadas para OpenStreetMap ou CARTO); limites: IBGE.')
                     st.download_button('Baixar mapa em HTML (abre no navegador; precisa de internet para o mapa base)', mapa.get_root().render().encode('utf-8'), 'mapa_mineracao.html', 'text/html')
                 except Exception as e: st.error(f'Erro ao montar o mapa: {e}')
                 cols_t = [c for c in ['cnpj', 'titular_sigmine', 'prioridade', 'anos_cfem', 'fase', 'substancia_sigmine', 'processo_sigmine', 'lat', 'lon'] if c in pontos]
