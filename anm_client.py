@@ -10,6 +10,11 @@ DATASETS = {
     'cfem': 'https://dados.gov.br/dados/conjuntos-dados/sistema-arrecadacao',
     'cadastro_mineiro': 'https://dados.gov.br/dados/conjuntos-dados/sistema-de-cadastro-mineiro',
 }
+RESOURCE_URLS = {
+    # Equivalentes aos botões “Acessar o recurso” dos cards do catálogo.
+    'cfem': 'https://dadosabertos.anm.gov.br/CFEM/CFEM_Arrecadacao_2022_2026.csv',
+    'cadastro_mineiro': 'https://dadosabertos.anm.gov.br/SCM/Licenciamento.csv',
+}
 EXTENSIONS = ('.csv', '.zip', '.xlsx', '.xls', '.parquet', '.json')
 
 
@@ -49,7 +54,7 @@ def _read_bytes(name: str, raw: bytes) -> pd.DataFrame:
 
 def download_dataset(dataset: str, resource_urls: list[str] | None = None) -> tuple[pd.DataFrame, dict]:
     page = DATASETS[dataset]
-    links = resource_urls or _resource_links(page)
+    links = resource_urls or [RESOURCE_URLS[dataset]]
     if not links:
         raise RuntimeError(
             'O catálogo carregou os recursos por JavaScript e não expôs links de arquivo no HTML. '
