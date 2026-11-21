@@ -26,7 +26,14 @@ with st.sidebar:
                     frames.append(df); sources.append(meta)
                 except Exception as exc: errors.append(f'{dataset}: {exc}')
             if frames:
-                st.session_state.minerios = normalize(pd.concat(frames, ignore_index=True, sort=False))
+                raw_all = pd.concat(frames, ignore_index=True, sort=False)
+                st.session_state.minerios = normalize(raw_all)
+                if st.session_state.minerios.empty:
+                    st.error('Os arquivos foram baixados, mas nenhuma linha tem CNPJ válido (14 dígitos). '
+                             'Confira abaixo as colunas recebidas e ajuste os nomes em config.yaml (seção columns).')
+                    for (ds, f) in zip(('cfem', 'cadastro_mineiro'), frames):
+                        st.caption(f'{ds}: {len(f):,} linhas • colunas: ' + ', '.join(map(str, f.columns)))
+                        st.dataframe(f.head(3), use_container_width=True)
                 st.session_state.anm_sources = sources
                 st.session_state.anm_updated = pd.Timestamp.now(tz='UTC').isoformat()
                 st.success(f'{len(st.session_state.minerios):,} linhas empresariais carregadas.')
@@ -62,7 +69,7 @@ if page == 'Importação de dados':
     c1, c2 = st.columns(2)
     with c1:
         st.subheader('ANM — mineração')
-        up = st.file_uploader('CSV, XLSX ou Parquet', type=['csv','xlsx','xls','parquet'], key='anm')
+        up = st.file_uploader('CSV, XLSX ou Parquet', type=['csv','xlsx','xls','parquet'], key='anm_upload')
         if up and st.button('Carregar base ANM'):
             try:
                 st.session_state.minerios = normalize(read_uploaded(up))
@@ -70,7 +77,7 @@ if page == 'Importação de dados':
             except Exception as e: st.error(str(e))
     with c2:
         st.subheader('Crea — registros/ARTs')
-        upc = st.file_uploader('Arquivo autorizado do Crea', type=['csv','xlsx','xls','parquet'], key='crea')
+        upc = st.file_uploader('Arquivo autorizado do Crea', type=['csv','xlsx','xls','parquet'], key='crea_upload')
         if upc and st.button('Carregar base Crea'):
             try:
                 st.session_state.crea = normalize(read_uploaded(upc))
