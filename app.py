@@ -15,7 +15,6 @@ with st.sidebar:
     st.caption('Sistema Confea/Crea • ANM')
     page = st.radio('Navegação', ['Painel', 'Empresas', 'Importação de dados', 'Legislação e fontes', 'Checklist remoto'])
     st.divider()
-    uf = st.selectbox('Regional responsável', ['Todos'] + sorted(set(st.session_state.minerios.get('uf', pd.Series(dtype=str)).dropna().tolist())))
     if st.button('Atualizar dados públicos da ANM', use_container_width=True):
         with st.spinner('Baixando CFEM e Cadastro Mineiro...'):
             frames, sources, errors = [], [], []
@@ -43,9 +42,13 @@ with st.sidebar:
     if st.session_state.get('anm_updated'):
         st.caption('Última atualização: ' + st.session_state.anm_updated)
     st.caption('A base pública é um apoio à triagem. A confirmação de infração exige análise do agente fiscal.')
+    st.divider()
+    _ufs = sorted({u for u in st.session_state.minerios.get('uf', pd.Series(dtype=str)).dropna().tolist() if u})
+    _padrao = [CONFIG['app'].get('default_uf')] if CONFIG['app'].get('default_uf') in _ufs else []
+    ufs = st.multiselect('UF', _ufs, default=_padrao, placeholder='Todas as UFs')
 
 base = enrich(st.session_state.minerios, st.session_state.crea)
-if uf != 'Todos' and not base.empty: base = base[base.uf.eq(uf)]
+if ufs and not base.empty: base = base[base.uf.isin(ufs)]
 with st.sidebar:
     municipios = ['Todos'] + sorted(base.municipio[base.municipio.ne('')].dropna().unique().tolist()) if not base.empty else ['Todos']
     municipio = st.selectbox('Município', municipios)
