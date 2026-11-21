@@ -92,3 +92,21 @@ def company_summary(df):
     if df.empty: return df
     agg = {'titular':lambda x: next((v for v in x if v), ''),'uf':'first','municipio':lambda x: ', '.join(sorted(set(v for v in x if v))), 'processo':'count','substancia':lambda x: ', '.join(sorted(set(v for v in x if v))), 'prioridade':'max','registro_crea':'first'}
     return df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo':'qtd_processos'})
+    def fmt_cnpj(value):
+    """00000000000000 -> 00.000.000/0000-00 (como texto, o Excel preserva os zeros à esquerda)."""
+    d = clean_doc(value)
+    if len(d) < 14:
+        d = d.zfill(14) if d else ''
+    return f'{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:]}' if len(d) == 14 else d
+
+
+def export_frames(df):
+    """Retorna (csv_bytes, xlsx_bytes) com CNPJ mascarado e como texto."""
+    out = df.copy()
+    if 'cnpj' in out:
+        out['cnpj'] = out['cnpj'].map(fmt_cnpj)
+    csv = out.to_csv(index=False, sep=';').encode('utf-8-sig')
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as w:
+        out.to_excel(w, index=False, sheet_name='fila')
+    return csv, buf.getvalue()
