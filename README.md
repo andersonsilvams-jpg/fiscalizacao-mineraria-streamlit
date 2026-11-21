@@ -122,9 +122,17 @@ Pontos por prioridade, municípios coloridos pelo nº de empresas Alta e exporta
 ## Fluxo por estado
 
 1. Escolha o **Estado** na barra lateral (MS é o padrão).
-2. O app baixa automaticamente, em sequência: CFEM e Cadastro Mineiro (ANM, filtrados pela UF), SIGMINE da UF e a malha
-   municipal do IBGE. Cada passo é guardado em cache por 24 h; trocar de estado e voltar não baixa de novo.
+2. O app baixa automaticamente, em sequência: CFEM (ANM, filtrada pela UF), razão social das empresas (Cadastro Mineiro, cruzado
+   pelos CNPJs da CFEM do estado), SIGMINE da UF e a malha municipal do IBGE. Cada passo é guardado em cache por 24 h; trocar de estado e voltar não baixa de novo.
 3. Se um passo falhar, os demais continuam. A barra lateral mostra ✅/❌ por passo, com **Tentar novamente o que falhou**
    e **Recarregar tudo (ignorar cache)**.
 4. A base do Crea (dado interno) continua por upload em **Importação de dados**. Sem ela, a prioridade aparece como "Sem base Crea".
 5. Plano B: links diretos e upload manual (CFEM/Cadastro em **Importação de dados**; SIGMINE e KML/KMZ na página **Mapa**).
+
+
+## Prova documental
+
+Na aba **Empresas**, o quadro "Prova documental" leva ao relatório oficial *Maiores Arrecadadores CFEM* da ANM
+(`https://sistemas.anm.gov.br/arrecadacao/extra/relatorios/cfem/maiores_arrecadadores.aspx`), já com a região, o estado e os
+anos de recolhimento da empresa. O relatório identifica a empresa pelo nome (sem CNPJ); a coluna **titular** da fila vem do
+Cadastro Mineiro e liga o nome ao CNPJ. A ferramenta é de triagem; a validade como prova segue o procedimento do Crea.

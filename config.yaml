@@ -10,6 +10,7 @@ sources:
   anm_cadastro_mineiro: "https://dados.gov.br/dados/conjuntos-dados/sistema-de-cadastro-mineiro"
   anm_amb: "https://dados.gov.br/dados/conjuntos-dados/anuario-mineral-brasileiro-amb"
   anm_cfem: "https://dados.gov.br/dados/conjuntos-dados/sistema-arrecadacao"
+  anm_maiores_arrecadadores: "https://sistemas.anm.gov.br/arrecadacao/extra/relatorios/cfem/maiores_arrecadadores.aspx"
   anm_sigmine: "https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-geograficas-da-mineracao-sigmine"
   anm_sigbm: "https://dados.gov.br/dados/conjuntos-dados/barragens-de-mineracao"
   confea_fiscalizacao: "https://www.confea.org.br/atuacao/fiscalizacao"
@@ -25,7 +26,7 @@ columns:
   titular: ["Titular", "titular", "Nome", "Razão Social", "Razao Social", "Empresa"]
   processo: ["Processo", "processo", "Número do processo", "NUP"]
   substancia: ["Substância", "Substancia", "substancia", "Mineral"]
-  fase: ["Fase", "fase", "Regime", "Situação", "Situacao"]
+  fase: ["Fase Atual", "Fase", "fase", "Regime", "Situação", "Situacao"]
   quantidade: ["Produção", "Producao", "Quantidade", "CFEM"]
   ano: ["Ano", "Ano Base", "AnoBase", "Ano Arrecadação", "Ano Arrecadacao", "Ano Recolhimento"]
   valor: ["ValorRecolhido", "Valor Recolhido", "Valor Recolhimento", "Valor CFEM", "Valor"]

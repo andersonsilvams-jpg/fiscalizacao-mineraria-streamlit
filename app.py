@@ -6,7 +6,7 @@ from sigmine_utils import read_sigmine, pontos_empresas
 import copy
 import streamlit.components.v1 as components
 from geo_utils import ler_kml, stats_municipio, montar_mapa
-from loader import UFS, PASSOS, executar_passo, limpar_cache
+from loader import UFS, UF_INFO, PASSOS, executar_passo, limpar_cache
 from data_utils import CONFIG, read_uploaded, normalize, enrich, company_summary, export_frames
 
 st.set_page_config(page_title=CONFIG['app']['title'], page_icon='⛏️', layout='wide')
@@ -16,7 +16,8 @@ if 'crea' not in st.session_state: st.session_state.crea = pd.DataFrame()
 if 'sigmine' not in st.session_state: st.session_state.sigmine = pd.DataFrame()
 if 'municipios' not in st.session_state: st.session_state.municipios = None
 if 'carga' not in st.session_state: st.session_state.carga = {}        # passo -> (ok, mensagem)
-if 'frames' not in st.session_state: st.session_state.frames = {}      # passo -> DataFrame (CFEM / Cadastro)
+if 'frames' not in st.session_state: st.session_state.frames = {}      # passo -> DataFrame (CFEM)
+if 'titulares' not in st.session_state: st.session_state.titulares = pd.DataFrame()   # cnpj -> razão social
 if 'uf_ativa' not in st.session_state: st.session_state.uf_ativa = None
 if 'tls_fallback' not in st.session_state: st.session_state.tls_fallback = False
 
@@ -34,14 +35,15 @@ def mostrar_html(html, altura):
 
 
 def zerar_carga():
-    st.session_state.update(frames={}, carga={}, sigmine=pd.DataFrame(), municipios=None, minerios=pd.DataFrame(), tls_fallback=False)
+    st.session_state.update(frames={}, carga={}, sigmine=pd.DataFrame(), municipios=None, minerios=pd.DataFrame(), titulares=pd.DataFrame(), tls_fallback=False)
 
 
 def guardar(passo, dados):
-    if passo in ('cfem', 'cadastro_mineiro'):
-        st.session_state.frames[passo] = dados
-        partes = [st.session_state.frames[p] for p in ('cfem', 'cadastro_mineiro') if p in st.session_state.frames and len(st.session_state.frames[p])]
-        st.session_state.minerios = pd.concat(partes, ignore_index=True, sort=False) if partes else pd.DataFrame()
+    if passo == 'cfem':
+        st.session_state.frames['cfem'] = dados
+        st.session_state.minerios = dados
+    elif passo == 'cadastro_mineiro':
+        st.session_state.titulares = dados
     elif passo == 'sigmine':
         st.session_state.sigmine = dados
     elif passo == 'municipios':
@@ -73,6 +75,9 @@ elif recarregar:
     limpar_cache(); zerar_carga(); _passos = list(PASSOS)
 elif tentar:
     _passos = list(_falhas)
+    if 'cfem' in _passos and 'cadastro_mineiro' not in _passos:
+        _passos.append('cadastro_mineiro')
+    _passos = [p for p in PASSOS if p in _passos]
 if _passos:
     with st.sidebar:
         with st.status(f'Carregando dados de {uf}...', expanded=True) as _st:
@@ -110,7 +115,7 @@ with st.sidebar:
     municipios = ['Todos'] + sorted(base.municipio[base.municipio.ne('')].dropna().unique().tolist()) if not base.empty else ['Todos']
     municipio = st.selectbox('Município', municipios)
 if municipio != 'Todos' and not base.empty: base = base[base.municipio.eq(municipio)]
-empresas = company_summary(base)
+empresas = company_summary(base, st.session_state.titulares)
 sem_ano = (not empresas.empty) and empresas['ultimo_ano_cfem'].isna().all()
 ano_col = base['_ano_coluna'].iloc[0] if (not base.empty and '_ano_coluna' in base) else None
 
@@ -200,6 +205,19 @@ elif page == 'Empresas':
         d1.download_button('Baixar fila em CSV (Excel pt-BR)', _csv, 'fila_fiscalizacao.csv', 'text/csv')
         d2.download_button('Baixar fila em XLSX', _xlsx, 'fila_fiscalizacao.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         st.caption('“Sem registro localizado” não equivale, por si só, a irregularidade. Use a fila para diligência e confirmação.')
+        with st.expander('Prova documental: relatório oficial da ANM (Maiores Arrecadadores CFEM)'):
+            _reg, _estado = UF_INFO.get(uf, ('', uf))
+            _anos = sorted({a.strip() for x in view['anos_cfem'] for a in str(x).split(',') if a.strip()}) if 'anos_cfem' in view else []
+            st.markdown(
+                f"""Relatório oficial da ANM para anexar ao processo. Para o estado selecionado:
+1. Ano: **{', '.join(_anos) if _anos else 'o(s) ano(s) de recolhimento da empresa (coluna `anos_cfem`)'}** — gere um relatório por ano em que a empresa recolheu.
+2. Região: **{_reg}** · Estado: **{_estado}**.
+3. Arrecadação por: **Empresa** · Ordenado por: **Recolhimento** · clique em **Gerar**.
+4. Localize a empresa pela coluna **titular** desta tabela e imprima ou salve em PDF (a página traz o quadro de filtros usado).""")
+            st.link_button('Abrir o relatório da ANM', CONFIG['sources']['anm_maiores_arrecadadores'])
+            st.caption('Atenção: o relatório identifica a empresa pelo **nome**, sem CNPJ; o vínculo nome–CNPJ vem da coluna titular '
+                       '(Cadastro Mineiro) e deve ser conferido. Ele não inclui pagamentos de parcelamento. Anexe também o CSV/XLSX '
+                       'desta fila (com CNPJ e anos de recolhimento). Esta ferramenta é triagem; a validade como prova segue o procedimento do Crea.')
 
 elif page == 'Mapa':
     st.header('Mapa da exploração mineral')
@@ -272,6 +290,7 @@ elif page == 'Legislação e fontes':
         ('Lei nº 6.496/1977', 'Institui a ART e define o responsável técnico pelo empreendimento.', CONFIG['sources']['lei_6496']),
         ('Resolução Confea nº 1.008/2004', 'Procedimentos de instauração, instrução e julgamento de processos de infração.', CONFIG['sources']['resolucao_1008']),
         ('Acordo Confea–ANM', 'Cooperação, compartilhamento de dados e combate à informalidade na mineração.', CONFIG['sources']['act_confea_anm']),
+        ('Relatório Maiores Arrecadadores CFEM (ANM)', 'Relatório oficial por ano, região, estado e empresa, para impressão como documento de apoio.', CONFIG['sources']['anm_maiores_arrecadadores']),
         ('Dados abertos da ANM', 'Cadastro Mineiro, AMB, CFEM, SIGMINE, SIGBM e demais conjuntos.', CONFIG['sources']['anm_catalogo']),
     ]
     for title, desc, url in itens:
