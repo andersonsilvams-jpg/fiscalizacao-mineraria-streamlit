@@ -39,7 +39,10 @@ def _read_bytes(name: str, raw: bytes) -> pd.DataFrame:
         for enc in ('utf-8-sig', 'utf-8', 'latin1'):
             for sep in (None, ';', ','):
                 try:
-                    return pd.read_csv(io.BytesIO(raw), sep=sep, engine='python', encoding=enc, low_memory=False)
+                    kwargs = {'sep': sep, 'encoding': enc}
+                    if sep is not None:
+                        kwargs['low_memory'] = False
+                    return pd.read_csv(io.BytesIO(raw), engine='python', **kwargs)
                 except Exception as exc: last = exc
         raise ValueError(f'CSV não pôde ser lido: {last}')
     if low.endswith(('.xlsx', '.xls')): return pd.read_excel(io.BytesIO(raw))
