@@ -92,7 +92,8 @@ def normalize(df):
         if c not in out: out[c] = ''
         out[c] = out[c].fillna('').astype(str).str.strip()
     if 'cnpj' not in out: out['cnpj'] = ''
-    out['cnpj'] = out['cnpj'].map(lambda x: clean_doc(x, 14))
+    # CNPJ que perdeu zeros à esquerda (Excel/CSV): 12-13 dígitos são completados; 11 dígitos é CPF e fica de fora.
+    out['cnpj'] = out['cnpj'].map(lambda x: clean_doc(x).zfill(14) if len(clean_doc(x)) in (12, 13) else clean_doc(x, 14))
     if 'cpf' in out:
         out['cpf'] = out['cpf'].map(lambda x: clean_doc(x, 11))
     # Regra explícita do projeto: pessoas físicas/linhas sem CNPJ não entram na base empresarial.
@@ -117,7 +118,12 @@ def enrich(df, crea_df=None):
         c = normalize(crea_df)
         reg = c[['cnpj']].drop_duplicates().assign(registro_crea=True)
         out = out.merge(reg, on='cnpj', how='left')
-        out['registro_crea'] = out['registro_crea'].fillna(False)
+        out['registro_crea'] = out['registro_crea'].fillna(False).astype(bool)
+        # Filial na CFEM e matriz registrada (mesma raiz, 8 primeiros dígitos): conta como registrada, marcada à parte.
+        raizes = set(c['cnpj'].str[:8])
+        so_raiz = ~out['registro_crea'] & out['cnpj'].str[:8].isin(raizes)
+        out['registro_crea'] = out['registro_crea'] | so_raiz
+        out['registro_raiz'] = so_raiz
     else:
         out['registro_crea'] = pd.NA
     return out
@@ -142,6 +148,7 @@ def company_summary(df, titulares=None):
         'processo': lambda x: x[x.ne('')].nunique(),
         'substancia': lambda x: ', '.join(sorted(set(v for v in x if v))),
         'registro_crea': 'first',
+        **({'registro_raiz': 'first'} if 'registro_raiz' in df else {}),
     }
     resumo = df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo': 'qtd_processos'})
     if titulares is not None and len(titulares):  # razão social vinda do Cadastro Mineiro
@@ -182,7 +189,9 @@ def company_summary(df, titulares=None):
 
     resumo = resumo.sort_values(by=['prioridade', 'qtd_processos'], key=lambda c: c.map(ORDEM_PRIORIDADE) if c.name == 'prioridade' else -c)
     # texto legível (a prioridade acima já foi calculada com o valor booleano)
+    raiz = resumo['registro_raiz'].fillna(False).astype(bool) if 'registro_raiz' in resumo else pd.Series(False, index=resumo.index)
     resumo['registro_crea'] = resumo['registro_crea'].map(lambda v: 'SEM BASE CREA' if pd.isna(v) else ('SIM' if v else 'NÃO'))
+    resumo.loc[raiz & resumo['registro_crea'].eq('SIM'), 'registro_crea'] = 'SIM (matriz/filial)'
     ordem = ['cnpj', 'titular', 'uf', 'municipio', 'prioridade', 'registro_crea', 'anos_cfem', 'ultimo_ano_cfem'] + anos_cols + ['qtd_processos', 'substancia']
     return resumo[ordem].reset_index(drop=True)
 
