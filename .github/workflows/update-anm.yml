@@ -1,0 +1,33 @@
+name: Atualizar dados públicos da ANM
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:15 UTC = 03:15 no horário de Brasília durante horário padrão.
+    - cron: '15 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+      - name: Baixar snapshots da ANM
+        run: python scripts/update_anm.py
+      - name: Publicar snapshots como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: anm-snapshot-${{ github.run_number }}
+          path: data/anm/
+          retention-days: 30

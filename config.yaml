@@ -1,0 +1,27 @@
+app:
+  title: "Fiscalização Minerária — Sistema Confea/Crea"
+  default_uf: "MS"
+  max_upload_mb: 500
+
+sources:
+  anm_catalogo: "https://www.gov.br/anm/pt-br/acesso-a-informacao/dados-abertos/bases-de-dados"
+  anm_cadastro_mineiro: "https://dados.gov.br/dados/conjuntos-dados/sistema-de-cadastro-mineiro"
+  anm_amb: "https://dados.gov.br/dados/conjuntos-dados/anuario-mineral-brasileiro-amb"
+  anm_cfem: "https://dados.gov.br/dados/conjuntos-dados/sistema-arrecadacao"
+  anm_sigmine: "https://dados.gov.br/dados/conjuntos-dados/sistema-de-informacoes-geograficas-da-mineracao-sigmine"
+  anm_sigbm: "https://dados.gov.br/dados/conjuntos-dados/barragens-de-mineracao"
+  confea_fiscalizacao: "https://www.confea.org.br/atuacao/fiscalizacao"
+  resolucao_1008: "https://normativos.confea.org.br/Ementas/Visualizar?id=548"
+  lei_6496: "https://www.planalto.gov.br/ccivil_03/leis/l6496.htm"
+  act_confea_anm: "https://www.confea.org.br/confea-e-agencia-nacional-de-mineracao-se-unem-no-combate-informalidade"
+
+columns:
+  uf: ["UF", "uf", "Estado", "Unidade Federativa"]
+  municipio: ["Município", "Municipio", "municipio", "Cidade"]
+  cnpj: ["CNPJ", "cnpj", "CNPJ/CPF", "Documento"]
+  cpf: ["CPF", "cpf"]
+  titular: ["Titular", "titular", "Nome", "Razão Social", "Razao Social", "Empresa"]
+  processo: ["Processo", "processo", "Número do processo", "NUP"]
+  substancia: ["Substância", "Substancia", "substancia", "Mineral"]
+  fase: ["Fase", "fase", "Regime", "Situação", "Situacao"]
+  quantidade: ["Produção", "Producao", "Quantidade", "CFEM"]
