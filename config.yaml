@@ -2,7 +2,7 @@ app:
   title: "Fiscalização Minerária — Sistema Confea/Crea"
   default_uf: "MS"
   max_upload_mb: 500
-  sigmine_url: "https://app.anm.gov.br/dadosabertos/SIGMINE/PROCESSOS_MINERARIOS/{uf}.zip"   # {uf} = sigla da UF
+  sigmine_url: "https://dadosabertos.anm.gov.br/SIGMINE/PROCESSOS_MINERARIOS/{uf}.zip"   # {uf} = sigla da UF (endereço novo da ANM, desde fev/2026)
   anos_recentes: 2   # CFEM em algum dos N anos mais recentes da base = indício forte de operação
 
 sources:

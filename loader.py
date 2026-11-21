@@ -26,12 +26,13 @@ def dados_anm(dataset: str, uf: str, urls: tuple = ()):
     """CFEM ou Cadastro Mineiro já normalizado e filtrado pela UF. Retorna (df, tls_fallback, nota)."""
     df, meta = download_dataset(dataset, list(urls) or None)
     df['fonte'] = dataset
+    colunas = [str(c) for c in df.columns if c != 'fonte']
     out = normalize(df)
     del df
     nota = ''
     if len(out) and out['uf'].eq('').all():
         out = out.iloc[0:0]
-        nota = 'arquivo sem coluna de UF identificada: ignorado (ajuste os nomes em config.yaml > columns > uf)'
+        nota = 'sem coluna de UF identificada: ignorado. Colunas do arquivo: ' + ', '.join(colunas[:30])
     else:
         out = out[out['uf'].eq(uf)]
     return out.reset_index(drop=True), bool(meta.get('insecure_tls_fallback')), nota
@@ -40,8 +41,11 @@ def dados_anm(dataset: str, uf: str, urls: tuple = ()):
 @st.cache_data(ttl=TTL, show_spinner=False, max_entries=8)
 def sigmine_uf(uf: str, modelo_url: str):
     url = modelo_url.replace('{uf}', uf).replace('{UF}', uf)
-    raw, tls = download_bytes(url)
-    return read_sigmine(raw, url), tls
+    try:
+        raw, tls = download_bytes(url)
+        return read_sigmine(raw, url), tls
+    except Exception as exc:
+        raise RuntimeError(f'{url} -> {exc}') from exc
 
 
 @st.cache_data(ttl=TTL, show_spinner=False, max_entries=8)

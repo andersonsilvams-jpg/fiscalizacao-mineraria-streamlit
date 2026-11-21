@@ -105,7 +105,7 @@ verificar a conexão. Para gerar a cadeia (uma vez, na sua máquina):
 
 ```
 pip install cryptography
-python scripts/fetch_anm_chain.py   # cobre dadosabertos.anm.gov.br e app.anm.gov.br
+python scripts/fetch_anm_chain.py   # dadosabertos.anm.gov.br
 ```
 
 Isso cria `certs/anm_chain.pem`. Suba esse arquivo no GitHub: o app e o workflow passam a verificar o
@@ -114,7 +114,7 @@ certificado normalmente e o aviso deixa de aparecer. Sem o arquivo, o fallback r
 
 ## Mapa (Leaflet/OpenStreetMap)
 
-Página **Mapa**: (1) baixe o SIGMINE da UF (`https://app.anm.gov.br/dadosabertos/SIGMINE/PROCESSOS_MINERARIOS/{UF}.zip`)
+Página **Mapa**: (1) baixe o SIGMINE da UF (`https://dadosabertos.anm.gov.br/SIGMINE/PROCESSOS_MINERARIOS/{UF}.zip`)
 ou envie o shapefile .zip; (2) baixe os limites municipais do IBGE ou envie um KML/KMZ dos municípios.
 Pontos por prioridade, municípios coloridos pelo nº de empresas Alta e exportação do mapa em HTML.
 
