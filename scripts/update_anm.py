@@ -28,6 +28,8 @@ from bs4 import BeautifulSoup
 from urllib3.exceptions import InsecureRequestWarning
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from tls_utils import anm_verify  # noqa: E402
 OUT = ROOT / 'data' / 'anm'
 CATALOG = 'https://www.gov.br/anm/pt-br/acesso-a-informacao/dados-abertos/bases-de-dados'
 DATASETS = {
@@ -81,9 +83,14 @@ def download(url: str, target: Path, dry_run: bool) -> dict:
         insecure = False
     except requests.exceptions.SSLError:
         if ANM_HOST not in url.lower(): raise
-        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-        response = requests.get(url, headers=HEADERS, stream=True, timeout=(30, 300), verify=False)
-        insecure = True
+        bundle = anm_verify(); response = None; insecure = False
+        if bundle:
+            try: response = requests.get(url, headers=HEADERS, stream=True, timeout=(30, 300), verify=bundle)
+            except requests.exceptions.SSLError: response = None
+        if response is None:
+            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+            response = requests.get(url, headers=HEADERS, stream=True, timeout=(30, 300), verify=False)
+            insecure = True
     with response as r:
         r.raise_for_status()
         with tmp.open('wb') as f:
