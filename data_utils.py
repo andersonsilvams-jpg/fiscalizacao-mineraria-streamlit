@@ -126,7 +126,7 @@ def enrich(df, crea_df=None):
 ORDEM_PRIORIDADE = {'Alta': 0, 'Média': 1, 'Baixa': 2, 'Sem base Crea': 3}
 
 
-def company_summary(df):
+def company_summary(df, titulares=None):
     """Uma linha por CNPJ, com CFEM por ano e prioridade.
 
     Prioridade (exige a base do Crea carregada):
@@ -144,6 +144,9 @@ def company_summary(df):
         'registro_crea': 'first',
     }
     resumo = df.groupby('cnpj', as_index=False).agg(agg).rename(columns={'processo': 'qtd_processos'})
+    if titulares is not None and len(titulares):  # razão social vinda do Cadastro Mineiro
+        mp = titulares.drop_duplicates('cnpj').set_index('cnpj')['titular']
+        resumo['titular'] = resumo['titular'].where(resumo['titular'].ne(''), resumo['cnpj'].map(mp)).fillna('')
 
     # CFEM por ano (somente linhas da CFEM quando a origem está marcada)
     cf = df[df['ano'].notna()] if 'ano' in df else df.iloc[0:0]
